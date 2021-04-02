@@ -1,18 +1,32 @@
 from lexer import *
 
 """
-grammar for the maths expressions
+grammar
 
-expr   :  term (( PLUS | MINUS ) term)*
-       |  var assign expr
+program  :  statement_list EOF
 
-term   :  factor (( MUL | DIV ) factor)*
+statement_list  :  (statement)*
 
-factor :  (INTEGER | FLOAT | var) | LPAREN expr RPAREN
+statement  :  assignment_statement
 
-var    :  ID
+assignment_statement  :  variable ASSIGN expr
 
-assign :  = | ←
+magic_function  :  MAGIC expr (COMMA expr)*
+
+expr  :  term (( PLUS | MINUS ) term)*
+
+term  :  factor (( MUL | DIV ) factor)*
+
+factor  : PLUS factor
+        | MINUS factor
+        | INTEGER
+        | FLOAT
+        | LPAREN expr RPAREN
+        | variable
+
+variable  :  ID
+
+assign  :  = | ←
 
 """
 
@@ -34,6 +48,44 @@ class Num(AST):
         self.token = token
         self.value = token.value
 
+class String(AST):
+    def __init__(self, token):
+        self.token = token
+        self.value = token.value
+
+
+class UnaryOp(AST):
+    def __init__(self, op, expr):
+        self.token = self.op = op
+        self.expr = expr
+
+
+class Compound(AST):
+    """Represents a 'BEGIN ... END' block"""
+    def __init__(self):
+        self.children = []
+
+class Assign(AST):
+    def __init__(self, left, op, right):
+        self.left = left
+        self.token = self.op = op
+        self.right = right
+
+class Var(AST):
+    """The Var node is constructed out of ID token."""
+    def __init__(self, token):
+        self.token = token
+        self.value = token.value
+
+class Magic(AST):
+    def __init__(self, token, parameters):
+        self.token = token
+        self.parameters = parameters
+
+
+class NoOp(AST):
+    pass
+
 
 class ParseError(Exception):
     pass
@@ -50,13 +102,12 @@ class Parser:
         self.offset = 0
         self.lexer = lexer
         self.token_num = 0
-        self.global_variables = VariableContainer()
     
     
     def get_next_token(self):
         self.token_num += 1
         if self.token_num >= len(self.lexer.tokens):
-            return Token(TokenType.EOF, None)
+            return Token(None, TokenType.EOF)
         return self.lexer.tokens[self.token_num]
     
     
@@ -70,27 +121,98 @@ class Parser:
     @property
     def current_token(self):
         if self.token_num >= len(self.lexer.tokens):
-            return Token(TokenType.EOF, None)
+            return Token(None, TokenType.EOF)
         return self.lexer.tokens[self.token_num]
     
+    def error(self):
+        raise ParseError(self.current_token)
+
+    def program(self):
+        
+        nodes = self.statement_list()
+        
+        root = Compound()
+        for node in nodes:
+            root.children.append(node)
+
+        return root
     
-    def factor(self):
-        """factor : (INTEGER | FLOAT | var) | LPAREN expr RPAREN"""
+    def statement_list(self):
+        node = self.statement()
+
+        results = [node]
+
+        while self.current_token.type == TokenType.NEWLINE:
+            self.eat(TokenType.NEWLINE)
+            results.append(self.statement())
+
+        if self.current_token.type == TokenType.ID:
+            self.error()
+
+        return results
+    
+    def statement(self):
+        if self.current_token.type == TokenType.ID:
+            node = self.assignment_statement()
+        elif self.current_token.type == TokenType.MAGIC:
+            node = self.magic_function()
+        elif self.current_token.type == TokenType.KEYWORD:
+            node = self.process_keyword()
+        else:
+            node = self.empty()
+        return node
+    
+    def assignment_statement(self):
+        left = self.variable()
         token = self.current_token
-        if token.type == TokenType.INT:
+        self.eat(TokenType.ASSIGN)
+        right = self.expr()
+        node = Assign(left, token, right)
+        return node
+    
+    def variable(self):
+        node = Var(self.current_token)
+        self.eat(TokenType.ID)
+        return node
+    
+    def empty(self):
+        return NoOp()
+
+    def factor(self):
+        """factor : PLUS  factor
+              | MINUS factor
+              | INTEGER
+              | FLOAT
+              | STRING
+              | LPAREN expr RPAREN
+              | variable
+        """
+        token = self.current_token
+        if token.type == TokenType.ADD:
+            self.eat(TokenType.ADD)
+            node = UnaryOp(token, self.factor())
+            return node
+        elif token.type == TokenType.SUB:
+            self.eat(TokenType.SUB)
+            node = UnaryOp(token, self.factor())
+            return node
+        elif token.type == TokenType.INT:
             self.eat(TokenType.INT)
             return Num(token)
         elif token.type == TokenType.FLOAT:
             self.eat(TokenType.FLOAT)
             return Num(token)
-        #elif token.type == TokenType.ID:
-        #    self.eat(TokenType.ID)
-        #    return self.global_variables.variables[token.value]
-        else:
+        elif token.type == TokenType.LPAREN:
             self.eat(TokenType.LPAREN)
             node = self.expr()
             self.eat(TokenType.RPAREN)
-        return node
+            return node
+        elif token.type == TokenType.STRING:
+            self.eat(TokenType.STRING)
+            return String(token)
+        else:
+            node = self.variable()
+            return node
 
     
     def term(self):
@@ -107,41 +229,44 @@ class Parser:
             node = BinOp(left=node, op=token, right=self.factor())
         
         return node
-
-    #def assign(self):
-    #    var = self.current_token
-    #    self.eat(TokenType.ID)
-    #    self.eat(TokenType.ASSIGN)
-    #    result = self.expr()
-    #    self.global_variables.variables[var.value] = result
-    #    print(f"{var.value} -> {result}")
-    #    return result
     
     def expr(self):
         """expr   :  term (( PLUS | MINUS ) term)*
-                  |  var assign expr
         """
-        if self.current_token.type == TokenType.ID:
-            return
-            #return self.assign()
-        else:
-            node = self.term()
+        node = self.term()
 
-            while self.current_token.type in (TokenType.ADD, TokenType.SUB):
-                token = self.current_token
-                if token.type == TokenType.ADD:
-                    self.eat(TokenType.ADD)
-                
-                elif token.type == TokenType.SUB:
-                    self.eat(TokenType.SUB)
-                
-                node = BinOp(left=node, op=token, right=self.term())
+        while self.current_token.type in (TokenType.ADD, TokenType.SUB):
+            token = self.current_token
+            if token.type == TokenType.ADD:
+                self.eat(TokenType.ADD)
             
-            return node
+            elif token.type == TokenType.SUB:
+                self.eat(TokenType.SUB)
+            
+            node = BinOp(left=node, op=token, right=self.term())
+        
+        return node
 
+    def magic_function(self):
+        token = self.current_token
+        self.eat(TokenType.MAGIC)
+        parameters = [self.expr()]
+        while self.current_token.type == TokenType.COMMA:
+            self.eat(TokenType.COMMA)
+            parameters.append(self.expr())
+        node = Magic(token, parameters)
+
+        return node
     
+    def process_keyword(self):
+        pass
+
     def parse(self):
-        return self.expr()
+        node = self.program()
+        if self.current_token.type != TokenType.EOF:
+            self.error()
+
+        return node
 
 class NodeVisitor(object):
     def visit(self, node):
@@ -155,6 +280,7 @@ class NodeVisitor(object):
 class Interpreter(NodeVisitor):
     def __init__(self, parser):
         self.parser = parser
+        self.GLOBAL_SCOPE = {}
     
     def visit_BinOp(self, node):
         if node.op.type == TokenType.ADD:
@@ -165,9 +291,42 @@ class Interpreter(NodeVisitor):
             return self.visit(node.left) * self.visit(node.right)
         elif node.op.type == TokenType.DIV:
             return self.visit(node.left) / self.visit(node.right)
+    
+    def visit_UnaryOp(self, node):
+        op = node.op.type
+        if op == TokenType.ADD:
+            return +self.visit(node.expr)
+        elif op == TokenType.SUB:
+            return -self.visit(node.expr)
 
     def visit_Num(self, node):
         return node.value
+    
+    def visit_String(self, node):
+        return node.value
+    
+    def visit_Compound(self, node):
+        for child in node.children:
+            self.visit(child)
+
+    def visit_NoOp(self, node):
+        pass
+    
+    def visit_Assign(self, node):
+        var_name = node.left.value
+        self.GLOBAL_SCOPE[var_name] = self.visit(node.right)
+    
+    def visit_Var(self, node):
+        var_name = node.value
+        val = self.GLOBAL_SCOPE.get(var_name)
+        if val is None:
+            raise NameError(repr(var_name))
+        else:
+            return val
+    
+    def visit_Magic(self, node):
+        if node.token.value == "OUTPUT":
+            print(*[self.visit(n) for n in node.parameters])
 
     def interpret(self):
         tree = self.parser.parse()

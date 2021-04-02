@@ -2,11 +2,12 @@ from lexer import *
 from parse import *
 string = """
 a ← 1 + 2.2
-OUTPUT " this is a string "
+b ← a + 1
+OUTPUT "a is", a, "b is", b
 
 """
 
-string = input()
+#string = input()
 print(string)
 l = Lexer()
 result = l.lexString(string)
@@ -22,6 +23,7 @@ debugOutput(result)
 p = Parser(l)
 i = Interpreter(p)
 
-print(i.interpret())
+i.interpret()
+print("global variables:", i.GLOBAL_SCOPE)
 
 
