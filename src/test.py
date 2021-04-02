@@ -21,5 +21,3 @@ debugOutput(result)
 
 p = Parser(l)
 p.parse()
-
-print(p.nodes)
