@@ -5,9 +5,17 @@ from enum import Enum
 class TokenType(Enum):
     ASSIGN = "ASSIGN"
     OPERATOR = "OPERATOR"
+    
+    ADD = "ADD"
+    SUB = "SUB"
+    MUL = "MUL"
+    DIV = "DIV"
+    
     ID = "ID"
     NEWLINE = "NEWLINE"
     BRACKET = "BRACKET"
+    LPAREN = "LPAREN"
+    RPAREN = "RPAREN"
     KEYWORD = "KEYWORD"
     STRING_QUOTE = "STRING_QUOTE"
     MAGIC = "MAGIC"
@@ -15,6 +23,7 @@ class TokenType(Enum):
     COMMA = ","
 
     INVALID = "INVALID"
+    EOF = "EOF"
 
     # types
     FLOAT = "FLOAT"
@@ -33,12 +42,14 @@ class Token:
 
 symbols = { # single char symbols
     "←":  TokenType.ASSIGN,
-    "+":  TokenType.OPERATOR,
-    "*":  TokenType.OPERATOR,
-    "-":  TokenType.OPERATOR,
+    "=":  TokenType.ASSIGN,
+    "+":  TokenType.ADD,
+    "*":  TokenType.MUL,
+    "-":  TokenType.SUB,
+    "/":  TokenType.DIV,
     "\n": TokenType.NEWLINE,
-    "(":  TokenType.BRACKET,
-    ")":  TokenType.BRACKET,
+    "(":  TokenType.LPAREN,
+    ")":  TokenType.RPAREN,
     "[":  TokenType.BRACKET,
     "]":  TokenType.BRACKET, 
     ",":  TokenType.COMMA,
@@ -107,20 +118,21 @@ class Lexer:
                 if (string[i+1] == white_space or string[i+1] in KEYWORDS.keys() or self.lexme in KEYWORDS.keys()) and not is_string: # if next char == ' '
                     if self.lexme != "":
                         if is_number:
-                            if self.lexme.count(".") == 1:
-                                self.addToken(
-                                    self.lexme,
-                                    TokenType.FLOAT,
-                                )
-                            elif self.lexme.count(".") > 1:
+                            try:
+                                if self.lexme.count(".") == 1:
+                                    self.addToken(
+                                        float(self.lexme),
+                                        TokenType.FLOAT,
+                                    )
+                                else:
+                                    self.addToken(
+                                        int(self.lexme),
+                                        TokenType.INT,
+                                    )
+                            except ValueError:
                                 self.addToken(
                                     self.lexme,
                                     TokenType.INVALID,
-                                )
-                            else:
-                                self.addToken(
-                                    self.lexme,
-                                    TokenType.INT,
                                 )
                         else:
                             self.addToken(

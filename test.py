@@ -5,6 +5,8 @@ a ← 1 + 2.2
 OUTPUT " this is a string "
 
 """
+
+string = input()
 print(string)
 l = Lexer()
 result = l.lexString(string)
@@ -18,6 +20,6 @@ def debugOutput(result):
 debugOutput(result)
 
 p = Parser(l)
-p.parse(result)
+p.parse()
 
 print(p.nodes)
