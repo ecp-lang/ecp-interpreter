@@ -28,6 +28,7 @@ class TokenType(Enum):
     # types
     FLOAT = "FLOAT"
     INT = "INT"
+    STRING = "STRING"
 
 class Token:
     def __init__(self, value, type):
@@ -113,7 +114,7 @@ class Lexer:
                     self.lexme = self.lexme[:-1]
                     is_string = not is_string
                     if not is_string:
-                        self.addToken(self.lexme, "STRING")
+                        self.addToken(self.lexme, TokenType.STRING)
 
                 if (string[i+1] == white_space or string[i+1] in KEYWORDS.keys() or self.lexme in KEYWORDS.keys()) and not is_string: # if next char == ' '
                     if self.lexme != "":
