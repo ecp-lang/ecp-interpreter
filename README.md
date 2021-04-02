@@ -3,6 +3,8 @@ CC BY-SA 2021 Alfred Taylor & Conqu3red
 
 # **Extended Compiler-Friendly Pseudocode V1.0  (CP/ECP/ECFP/EECP)**
 
+## `THIS CODE IS IN A VERY INCOMPLETE STATE, PLEASE EXPECT LIMITED FUNCTIONALITY.`
+
 ## Introduction:
 
 This is an adaptation of the pseudocode used by the AQA GCSE testing body (found [here](https://filestore.aqa.org.uk/resources/computing/AQA-8525-TG-PC.PDF)) that has had its syntax tweaked for use in a compiler and had some additional functionality added. The language will be fully Turing complete. Pseudocode found in tests is compatible with ECP. It is procedurally based, and shares similarities with python.
@@ -26,3 +28,5 @@ We're designing the language to be more like a set of rules than a specific piec
 
 
 # MORE COMING SOON!
+
+
