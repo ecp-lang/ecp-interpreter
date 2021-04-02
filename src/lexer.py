@@ -21,6 +21,8 @@ class TokenType(Enum):
     MAGIC = "MAGIC"
     BOOLEAN = "BOOLEAN"
     COMMA = ","
+    COLON = "COLON"
+    TYPE = "TYPE"
 
     INVALID = "INVALID"
     EOF = "EOF"
@@ -55,13 +57,14 @@ symbols = { # single char symbols
     "]":  TokenType.BRACKET, 
     ",":  TokenType.COMMA,
     "\"": TokenType.STRING_QUOTE,
+    ":":  TokenType.COLON
 }
 #symbols = [] # single-char keywords
 other_symbols = {} # multi-char keywords
 keywords = {
     "SUBROUTINE": TokenType.KEYWORD, 
     "ENDSUBROUTINE": TokenType.KEYWORD, 
-    "RETURN": TokenType.KEYWORD, 
+    "RETURN": TokenType.MAGIC, 
     "WHILE": TokenType.KEYWORD, 
     "ENDWHILE": TokenType.KEYWORD,
     "OUTPUT": TokenType.MAGIC,
@@ -69,9 +72,14 @@ keywords = {
     "True": TokenType.BOOLEAN
 }
 
+types = {
+    "Real": TokenType.TYPE,
+    "Int": TokenType.TYPE,
+}
 
 
-KEYWORDS = {**symbols, **other_symbols, **keywords}
+
+KEYWORDS = {**symbols, **other_symbols, **keywords, **types}
 
 class Lexer:
     def __init__(self):

@@ -1,4 +1,5 @@
 from lexer import *
+from collections import OrderedDict
 
 """
 grammar
@@ -82,6 +83,26 @@ class Magic(AST):
         self.token = token
         self.parameters = parameters
 
+class DeclaredParam(AST):
+    def __init__(self, variable, default):
+        self.variable = variable
+        self.default = default
+
+class Param(AST):
+    def __init__(self, value, id):
+        self.value = value
+        self.id = id
+
+class Subroutine(AST):
+    def __init__(self, token, parameters, compound):
+        self.token = token
+        self.parameters = parameters
+        self.compound = compound
+
+class SubroutineCall(AST):
+    def __init__(self, subroutine_token, parameters):
+        self.subroutine_token = subroutine_token
+        self.parameters = parameters
 
 class NoOp(AST):
     pass
@@ -153,7 +174,11 @@ class Parser:
     
     def statement(self):
         if self.current_token.type == TokenType.ID:
-            node = self.assignment_statement()
+            var = self.variable()
+            if self.current_token.type == TokenType.LPAREN:
+                node = self.subroutine_call(var)
+            else:
+                node = self.assignment_statement(var)
         elif self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
         elif self.current_token.type == TokenType.KEYWORD:
@@ -162,9 +187,12 @@ class Parser:
             node = self.empty()
         return node
     
-    def assignment_statement(self):
-        left = self.variable()
+    def assignment_statement(self, var):
+        left = var
         token = self.current_token
+        if self.current_token.type == TokenType.COLON:
+            self.eat(TokenType.COLON)
+            self.eat(TokenType.TYPE)
         self.eat(TokenType.ASSIGN)
         right = self.expr()
         node = Assign(left, token, right)
@@ -186,6 +214,7 @@ class Parser:
               | STRING
               | LPAREN expr RPAREN
               | variable
+              | function_call
         """
         token = self.current_token
         if token.type == TokenType.ADD:
@@ -212,6 +241,8 @@ class Parser:
             return String(token)
         else:
             node = self.variable()
+            if self.current_token.type == TokenType.LPAREN:
+                node = self.subroutine_call(node)
             return node
 
     
@@ -258,8 +289,63 @@ class Parser:
 
         return node
     
+    def declare_param(self):
+        var = self.variable()
+        node = DeclaredParam(var, None)
+        token = self.current_token
+        if self.current_token.type == TokenType.COLON:
+            self.eat(TokenType.COLON)
+            self.eat(TokenType.TYPE)
+        if self.current_token.type == TokenType.ASSIGN:
+            self.eat(TokenType.ASSIGN)
+            right = self.expr()
+            node.default = right
+        
+        return node
+    
+    def param(self):
+        if self.current_token.type == TokenType.ID:
+            pass
+        else:
+            node = Param(self.expr(), None)
+            return node
+
+    
+    def subroutine(self):
+        self.eat(TokenType.KEYWORD)
+        token = self.current_token
+        self.eat(TokenType.ID)
+        self.eat(TokenType.LPAREN)
+        parameters = [self.declare_param()]
+        
+        while self.current_token.type == TokenType.COMMA:
+            self.eat(TokenType.COMMA)
+            parameters.append(self.declare_param())
+        self.eat(TokenType.RPAREN)
+        compound = Compound()
+        compound.children = self.statement_list()
+        self.eat(TokenType.KEYWORD)
+        return Subroutine(token, parameters, compound)
+
+    def subroutine_call(self, var):
+        self.eat(TokenType.LPAREN)
+
+        parameters = [self.param()]
+
+        while self.current_token.type == TokenType.COMMA:
+            self.eat(TokenType.COMMA)
+            parameters.append(self.param())
+        self.eat(TokenType.RPAREN)
+
+        return SubroutineCall(var, parameters)
+
     def process_keyword(self):
-        pass
+        token = self.current_token
+        if token.value == "SUBROUTINE":
+            node = self.subroutine()
+        else:
+            node = self.empty()
+        return node
 
     def parse(self):
         node = self.program()
@@ -267,6 +353,27 @@ class Parser:
             self.error()
 
         return node
+
+
+class VariableScope(object):
+    def __init__(self, name, enclosing_scope):
+        self.name = name
+        self.enclosing_scope = enclosing_scope
+        self._variables = {}
+    
+    def insert(self, var, value):
+        self._variables[var.value] = value
+    
+    def get(self, var):
+        value = self._variables.get(var.value)
+        if value:
+            return value
+        
+        if value is None:
+            while self.enclosing_scope != None:
+                return self.enclosing_scope.get(var)
+        
+        raise NameError(f"{var.value} does not exist")
 
 class NodeVisitor(object):
     def visit(self, node):
@@ -277,10 +384,13 @@ class NodeVisitor(object):
     def generic_visit(self, node):
         raise Exception('No visit_{} method'.format(type(node).__name__))
 
+
+
+
 class Interpreter(NodeVisitor):
     def __init__(self, parser):
         self.parser = parser
-        self.GLOBAL_SCOPE = {}
+        self.current_scope = None
     
     def visit_BinOp(self, node):
         if node.op.type == TokenType.ADD:
@@ -314,11 +424,11 @@ class Interpreter(NodeVisitor):
     
     def visit_Assign(self, node):
         var_name = node.left.value
-        self.GLOBAL_SCOPE[var_name] = self.visit(node.right)
+        self.current_scope.insert(node.left, self.visit(node.right))
     
     def visit_Var(self, node):
         var_name = node.value
-        val = self.GLOBAL_SCOPE.get(var_name)
+        val = self.current_scope.get(node)
         if val is None:
             raise NameError(repr(var_name))
         else:
@@ -327,7 +437,38 @@ class Interpreter(NodeVisitor):
     def visit_Magic(self, node):
         if node.token.value == "OUTPUT":
             print(*[self.visit(n) for n in node.parameters])
+        elif node.token.value == "RETURN":
+            self.RETURN_VALUE = [self.visit(n) for n in node.parameters][0]
 
+    def visit_Subroutine(self, node):
+        self.current_scope.insert(node.token, node)
+        #print(f"{node.token.value}({', '.join([n.variable.value for n in node.parameters])})")
+        #for c in node.children:
+        #    print("  ", c)
+    
+    def visit_SubroutineCall(self, node):
+        #print(f"called {node.subroutine_token.value}({', '.join([str(n.value.value) for n in node.parameters])})")
+        function_scope = VariableScope(node.subroutine_token.value, self.current_scope)
+
+        function = self.current_scope.get(node.subroutine_token)
+        #print(function)
+        for c, p in enumerate(function.parameters):
+            function_scope.insert(p.variable, node.parameters[c].value.value)
+        
+        self.current_scope = function_scope
+
+        # execute function
+        self.RETURN_VALUE = None
+        self.visit(function.compound)
+        result = self.RETURN_VALUE
+        self.RETURN_VALUE = None
+        self.current_scope = self.current_scope.enclosing_scope
+
+        return result
+    
     def interpret(self):
         tree = self.parser.parse()
-        return self.visit(tree)
+        global_scope = VariableScope("global", None)
+        self.current_scope = global_scope
+        
+        self.visit(tree)
