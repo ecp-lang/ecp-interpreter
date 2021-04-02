@@ -9,13 +9,15 @@ OUTPUT "a is", a, "b is", b
 """
 
 string = """
-SUBROUTINE add(a, b)
-    result ← a + b
+SUBROUTINE func(a, b)
+    result ← a * b + b
     RETURN result
 ENDSUBROUTINE
 
-OUTPUT "1 + 2 =", add(1,2)
+OUTPUT func(1,func(2,3))
 """
+
+
 #string = input()
 print(string)
 l = Lexer()

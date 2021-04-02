@@ -75,6 +75,7 @@ keywords = {
 types = {
     "Real": TokenType.TYPE,
     "Int": TokenType.TYPE,
+    "Bool": TokenType.TYPE
 }
 
 
@@ -144,10 +145,16 @@ class Lexer:
                                     TokenType.INVALID,
                                 )
                         else:
-                            self.addToken(
-                                self.lexme,
-                                KEYWORDS.get(self.lexme, TokenType.ID),
-                            )
+                            if self.lexme in ("True", "False"):
+                                self.addToken(
+                                    bool(self.lexme),
+                                    KEYWORDS.get(self.lexme, TokenType.ID),
+                                )
+                            else:
+                                self.addToken(
+                                    self.lexme,
+                                    KEYWORDS.get(self.lexme, TokenType.ID),
+                                )
                         is_number = False
 
         return self.tokens

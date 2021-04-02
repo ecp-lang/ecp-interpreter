@@ -54,6 +54,10 @@ class String(AST):
         self.token = token
         self.value = token.value
 
+class Bool(AST):
+    def __init__(self, token):
+        self.token = token
+        self.value = token.value
 
 class UnaryOp(AST):
     def __init__(self, op, expr):
@@ -231,6 +235,9 @@ class Parser:
         elif token.type == TokenType.FLOAT:
             self.eat(TokenType.FLOAT)
             return Num(token)
+        elif token.type == TokenType.BOOLEAN:
+            self.eat(TokenType.BOOLEAN)
+            return Bool(token)
         elif token.type == TokenType.LPAREN:
             self.eat(TokenType.LPAREN)
             node = self.expr()
@@ -304,11 +311,8 @@ class Parser:
         return node
     
     def param(self):
-        if self.current_token.type == TokenType.ID:
-            pass
-        else:
-            node = Param(self.expr(), None)
-            return node
+        node = Param(self.expr(), None)
+        return node
 
     
     def subroutine(self):
@@ -415,6 +419,9 @@ class Interpreter(NodeVisitor):
     def visit_String(self, node):
         return node.value
     
+    def visit_Bool(self, node):
+        return node.value
+    
     def visit_Compound(self, node):
         for child in node.children:
             self.visit(child)
@@ -453,7 +460,7 @@ class Interpreter(NodeVisitor):
         function = self.current_scope.get(node.subroutine_token)
         #print(function)
         for c, p in enumerate(function.parameters):
-            function_scope.insert(p.variable, node.parameters[c].value.value)
+            function_scope.insert(p.variable, self.visit(node.parameters[c].value))
         
         self.current_scope = function_scope
 
