@@ -20,4 +20,8 @@ def debugOutput(result):
 debugOutput(result)
 
 p = Parser(l)
-p.parse()
+i = Interpreter(p)
+
+print(i.interpret())
+
+
