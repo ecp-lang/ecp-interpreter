@@ -351,7 +351,7 @@ class Parser:
         """term : factor (( MUL | DIV ) factor)* """
         node = self.factor()
 
-        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV):
+        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV, TokenType.MOD):
             token = self.current_token
             self.eat(token.type)
         
@@ -549,11 +549,16 @@ class Parser:
         """array  :  LS_PAREN (expr)? (COMMA expr)* RS_PAREN"""
         values = []
         if self.current_token.type != TokenType.RS_PAREN:
+            self.eat_gap()
             values.append(self.expr())
             self.eat_gap()
             while self.current_token.type == TokenType.COMMA:
+                self.eat_gap()
                 self.eat(TokenType.COMMA)
+                self.eat_gap()
                 values.append(self.expr())
+                self.eat_gap()
+        self.eat_gap()
         #print(values)
         return Array(values)
     
@@ -624,6 +629,8 @@ class Interpreter(NodeVisitor):
             return self.visit(node.left) / self.visit(node.right)
         elif node.op.type == TokenType.INT_DIV:
             return self.visit(node.left) // self.visit(node.right)
+        elif node.op.type == TokenType.MOD:
+            return self.visit(node.left) % self.visit(node.right)
         
         elif node.op.type == TokenType.GT:
             return self.visit(node.left) > self.visit(node.right)

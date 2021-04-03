@@ -12,6 +12,7 @@ class TokenType(Enum):
     MUL = "MUL"
     DIV = "DIV"
     INT_DIV = "INT_DIV"
+    MOD = "MOD"
 
     LT = "LT"
     LE = "LE"
@@ -80,6 +81,7 @@ symbols = { # single char symbols
     "-":  TokenType.SUB,
     "–":  TokenType.SUB,
     "DIV": TokenType.INT_DIV,
+    "MOD": TokenType.MOD,
     "/":  TokenType.DIV,
     
     "!=": TokenType.NE,
