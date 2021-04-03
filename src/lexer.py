@@ -6,10 +6,18 @@ class TokenType(Enum):
     ASSIGN = "ASSIGN"
     OPERATOR = "OPERATOR"
     
+    # operators
     ADD = "ADD"
     SUB = "SUB"
     MUL = "MUL"
     DIV = "DIV"
+
+    LT = "LT"
+    LE = "LE"
+    EQ = "EQ"
+    NE = "NE"
+    GT = "GT"
+    GE = "GE"
     
     ID = "ID"
     NEWLINE = "NEWLINE"
@@ -31,25 +39,39 @@ class TokenType(Enum):
     FLOAT = "FLOAT"
     INT = "INT"
     STRING = "STRING"
+    BUILTIN_FUNCTION = "BUILTIN_FUNCTION"
 
 class Token:
-    def __init__(self, value, type):
+    def __init__(self, value, type, lineno=None, column=None):
         self.value = value
         self.type = type
+        self.lineno = lineno
+        self.column = column
     
     def __str__(self):
-        return f"<Token(value={self.value}, type={self.type})>"
+        return f"<Token(value={self.value}, type={self.type}, position={self.lineno}:{self.column})>"
     
     def __repr__(self):
         return self.__str__()
 
 symbols = { # single char symbols
     "←":  TokenType.ASSIGN,
-    "=":  TokenType.ASSIGN,
+    "=":  TokenType.EQ,
+    
     "+":  TokenType.ADD,
     "*":  TokenType.MUL,
     "-":  TokenType.SUB,
     "/":  TokenType.DIV,
+    
+    "!=": TokenType.NE,
+    "<=": TokenType.LE,
+    ">=": TokenType.GE,
+    "<":  TokenType.LT,
+    ">":  TokenType.GT,
+    "≠":  TokenType.NE,
+    "≤":  TokenType.LE,
+    "≥":  TokenType.GE,
+    
     "\n": TokenType.NEWLINE,
     "(":  TokenType.LPAREN,
     ")":  TokenType.RPAREN,
@@ -64,7 +86,8 @@ other_symbols = {} # multi-char keywords
 keywords = {
     "SUBROUTINE": TokenType.KEYWORD, 
     "ENDSUBROUTINE": TokenType.KEYWORD, 
-    "RETURN": TokenType.MAGIC, 
+    "RETURN": TokenType.MAGIC,
+    "USERINPUT": TokenType.BUILTIN_FUNCTION,
     "WHILE": TokenType.KEYWORD, 
     "ENDWHILE": TokenType.KEYWORD,
     "OUTPUT": TokenType.MAGIC,
@@ -86,11 +109,15 @@ class Lexer:
     def __init__(self):
         self.tokens: List[Token] = []
         self.lexme = ""
+        self.lineno = 0
+        self.column = 0
     
     def addToken(self, value, token_type, reset=True):
         token = Token(
             value = value,
-            type = token_type
+            type = token_type,
+            lineno = self.lineno,
+            column = self.column
         )
         self.tokens.append(token)
 
@@ -110,6 +137,10 @@ class Lexer:
         
 
         for i,char in enumerate(string):
+            self.column += 1
+            if char == "\n":
+                self.lineno += 1
+                self.column = 0
             if char != white_space or is_string:
                 self.lexme += char # adding a char each time
             if (i+1 < len(string)): # prevents error
@@ -151,6 +182,8 @@ class Lexer:
                                     KEYWORDS.get(self.lexme, TokenType.ID),
                                 )
                             else:
+                                if string[i+1] in ("="):
+                                    continue
                                 self.addToken(
                                     self.lexme,
                                     KEYWORDS.get(self.lexme, TokenType.ID),
