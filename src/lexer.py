@@ -28,6 +28,9 @@ class TokenType(Enum):
     BRACKET = "BRACKET"
     LPAREN = "LPAREN"
     RPAREN = "RPAREN"
+    LS_PAREN = "LS_PAREN"
+    RS_PAREN = "RS_PAREN"
+
     KEYWORD = "KEYWORD"
     STRING_QUOTE = "STRING_QUOTE"
     MAGIC = "MAGIC"
@@ -43,6 +46,7 @@ class TokenType(Enum):
     FLOAT = "FLOAT"
     INT = "INT"
     STRING = "STRING"
+    ARRAY = "ARRAY"
     BUILTIN_FUNCTION = "BUILTIN_FUNCTION"
 
     IF = "IF"
@@ -93,8 +97,8 @@ symbols = { # single char symbols
     "\n": TokenType.NEWLINE,
     "(":  TokenType.LPAREN,
     ")":  TokenType.RPAREN,
-    "[":  TokenType.BRACKET,
-    "]":  TokenType.BRACKET, 
+    "[":  TokenType.LS_PAREN,
+    "]":  TokenType.RS_PAREN, 
     ",":  TokenType.COMMA,
     "\"": TokenType.STRING_QUOTE,
     ":":  TokenType.COLON
@@ -106,6 +110,7 @@ keywords = {
     "ENDSUBROUTINE": TokenType.KEYWORD, 
     "RETURN": TokenType.MAGIC,
     "USERINPUT": TokenType.BUILTIN_FUNCTION,
+    "LEN": TokenType.BUILTIN_FUNCTION,
     "WHILE": TokenType.KEYWORD, 
     "ENDWHILE": TokenType.KEYWORD,
     "OUTPUT": TokenType.MAGIC,

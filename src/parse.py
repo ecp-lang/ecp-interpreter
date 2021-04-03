@@ -37,6 +37,9 @@ factor                : PLUS factor
                       | FALSE
                       | variable
                       | function_call
+                      | array
+
+array                 : LS_PAREN (expr)? (COMMA expr)* RS_PAREN
 
 variable              :  ID
 
@@ -72,6 +75,16 @@ class Bool(AST):
         self.token = token
         self.value = token.value
 
+class Array(AST):
+    def __init__(self, value):
+        self.value = value
+    
+    def __setitem__(self, key, value):
+        self.value[key] = value
+    
+    def __getitem__(self, key):
+        return self.value[key]
+
 class UnaryOp(AST):
     def __init__(self, op, expr):
         self.token = self.op = op
@@ -94,6 +107,7 @@ class Var(AST):
     def __init__(self, token):
         self.token = token
         self.value = token.value
+        self.array_indexes = []
 
 class Magic(AST):
     def __init__(self, token, parameters):
@@ -266,6 +280,10 @@ class Parser:
     def variable(self):
         node = Var(self.current_token)
         self.eat(TokenType.ID)
+        while self.current_token.type == TokenType.LS_PAREN:
+            self.eat(TokenType.LS_PAREN)
+            node.array_indexes.append(self.expr())
+            self.eat(TokenType.RS_PAREN)
         return node
     
     def empty(self):
@@ -281,6 +299,7 @@ class Parser:
               | LPAREN expr RPAREN
               | variable
               | function_call
+              | ARRAY
         """
         token = self.current_token
         if token.type == TokenType.ADD:
@@ -308,6 +327,11 @@ class Parser:
             self.eat(TokenType.LPAREN)
             node = self.expr()
             self.eat(TokenType.RPAREN)
+            return node
+        elif token.type == TokenType.LS_PAREN:
+            self.eat(TokenType.LS_PAREN)
+            node = self.array()
+            self.eat(TokenType.RS_PAREN)
             return node
         elif token.type == TokenType.STRING:
             self.eat(TokenType.STRING)
@@ -521,6 +545,18 @@ class Parser:
 
         return node
     
+    def array(self):
+        """array  :  LS_PAREN (expr)? (COMMA expr)* RS_PAREN"""
+        values = []
+        if self.current_token.type != TokenType.RS_PAREN:
+            values.append(self.expr())
+            self.eat_gap()
+            while self.current_token.type == TokenType.COMMA:
+                self.eat(TokenType.COMMA)
+                values.append(self.expr())
+        #print(values)
+        return Array(values)
+    
 
     def parse(self):
         node = self.program()
@@ -566,6 +602,9 @@ class BuiltinFunctionContainer:
     
     def USERINPUT(self, *args):
         return input(self.interpreter.visit(args[0].value) if len(args) > 0 else "")
+    
+    def LEN(self, *args):
+        return len(self.interpreter.visit(args[0].value))
 
 class Interpreter(NodeVisitor):
     def __init__(self, parser):
@@ -622,6 +661,9 @@ class Interpreter(NodeVisitor):
     def visit_Bool(self, node):
         return node.value
     
+    def visit_Array(self, node):
+        return node.value
+    
     def visit_Compound(self, node):
         for child in node.children:
             self.visit(child)
@@ -631,14 +673,41 @@ class Interpreter(NodeVisitor):
 
     def visit_NoOp(self, node):
         pass
+
+    def set_element(self, l, index, value):
+        #print(f"list: {l}, indexes: {index}, value: {value}")
+        if(len(index) == 1):
+            l[self.visit(index[0])] = value
+            #print(f"set {l}[{self.visit(index[0])}] to {value}")
+        else:
+            self.set_element(l[self.visit(index[0])],index[1:],value)
     
     def visit_Assign(self, node):
         var_name = node.left.value
+        if var_name in self.current_scope._variables:
+            val = self.visit_Var(node.left, traverse_lists=False)
+            if isinstance(val, (list, str)):
+                self.set_element(
+                    self.current_scope._variables[node.left.value], 
+                    node.left.array_indexes, 
+                    self.visit(node.right)
+                )
+                return
         self.current_scope.insert(node.left, self.visit(node.right))
     
-    def visit_Var(self, node):
+    def visit_Var(self, node, traverse_lists = True):
         var_name = node.value
         val = self.current_scope.get(node)
+        #print(f"val type: {type(val)}")
+        if isinstance(val, (list, str)) and traverse_lists:
+            for i in node.array_indexes:
+                val = val[self.visit(i)]
+                if isinstance(val, AST):
+                    val = self.visit(val)
+                #print(f"val type: {type(val)}")
+
+        
+                
         if var_name not in self.current_scope._variables:
             raise NameError(repr(var_name))
         else:
@@ -646,7 +715,8 @@ class Interpreter(NodeVisitor):
     
     def visit_Magic(self, node):
         if node.token.value == "OUTPUT":
-            print(*[self.visit(n) for n in node.parameters])
+            values = [self.visit(n) for n in node.parameters]
+            print(*values)
         elif node.token.value == "RETURN":
             values = [self.visit(n) for n in node.parameters]
             self.RETURN_VALUE = values[0] if len(values) > 0 else None
