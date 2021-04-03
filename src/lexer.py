@@ -11,6 +11,7 @@ class TokenType(Enum):
     SUB = "SUB"
     MUL = "MUL"
     DIV = "DIV"
+    INT_DIV = "INT_DIV"
 
     LT = "LT"
     LE = "LE"
@@ -18,6 +19,9 @@ class TokenType(Enum):
     NE = "NE"
     GT = "GT"
     GE = "GE"
+    AND = "AND"
+    OR = "OR"
+    NOT = "NOT"
     
     ID = "ID"
     NEWLINE = "NEWLINE"
@@ -41,6 +45,14 @@ class TokenType(Enum):
     STRING = "STRING"
     BUILTIN_FUNCTION = "BUILTIN_FUNCTION"
 
+    IF = "IF"
+    ELSE = "ELSE"
+    THEN = "THEN"
+
+    WHILE = "WHILE"
+    REPEAT = "REPEAT"
+    UNTIL = "UNTIL"
+
 class Token:
     def __init__(self, value, type, lineno=None, column=None):
         self.value = value
@@ -56,11 +68,14 @@ class Token:
 
 symbols = { # single char symbols
     "←":  TokenType.ASSIGN,
+    ":=": TokenType.ASSIGN,
     "=":  TokenType.EQ,
     
     "+":  TokenType.ADD,
     "*":  TokenType.MUL,
     "-":  TokenType.SUB,
+    "–":  TokenType.SUB,
+    "DIV": TokenType.INT_DIV,
     "/":  TokenType.DIV,
     
     "!=": TokenType.NE,
@@ -71,6 +86,9 @@ symbols = { # single char symbols
     "≠":  TokenType.NE,
     "≤":  TokenType.LE,
     "≥":  TokenType.GE,
+    "NOT": TokenType.NOT,
+    "OR": TokenType.OR,
+    "AND": TokenType.AND,
     
     "\n": TokenType.NEWLINE,
     "(":  TokenType.LPAREN,
@@ -92,7 +110,18 @@ keywords = {
     "ENDWHILE": TokenType.KEYWORD,
     "OUTPUT": TokenType.MAGIC,
     "False": TokenType.BOOLEAN,
-    "True": TokenType.BOOLEAN
+    "True": TokenType.BOOLEAN,
+
+    "IF": TokenType.IF,
+    "THEN": TokenType.THEN,
+    "ELSE": TokenType.ELSE,
+    "ENDIF": TokenType.KEYWORD,
+
+    "WHILE": TokenType.WHILE,
+    "ENDWHILE": TokenType.KEYWORD,
+
+    "REPEAT": TokenType.REPEAT,
+    "UNTIL": TokenType.UNTIL,
 }
 
 types = {
@@ -178,7 +207,7 @@ class Lexer:
                         else:
                             if self.lexme in ("True", "False"):
                                 self.addToken(
-                                    bool(self.lexme),
+                                    True if self.lexme == "True" else False,
                                     KEYWORDS.get(self.lexme, TokenType.ID),
                                 )
                             else:
