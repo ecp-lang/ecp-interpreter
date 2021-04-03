@@ -6,5 +6,5 @@ table[3][1] := 16
 OUTPUT "table[3][1] is", table[3][1]
 
 t := "abc"
-OUTPUT t[1]
-OUTPUT "LEN(table) is", LEN(table)
+OUTPUT t[1] # aaaaaa
+OUTPUT "LEN(table) is", LEN(table) # comment

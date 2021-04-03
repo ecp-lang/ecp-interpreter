@@ -168,6 +168,7 @@ class Lexer:
         is_string = False
         is_number = False
         prev_char = ""
+        single_line_comment = False
         
 
         for i,char in enumerate(string):
@@ -175,16 +176,21 @@ class Lexer:
             if char == "\n":
                 self.lineno += 1
                 self.column = 0
+                single_line_comment = False
             if char != white_space or is_string:
                 self.lexme += char # adding a char each time
+            if char == "#" and prev_char != escape_character:
+                single_line_comment = True
             if (i+1 < len(string)): # prevents error
-                
+                if single_line_comment:
+                    self.lexme = ""
+                    continue
                 # Int and Real (float) processing
                 if not is_string and char.isdigit() and not is_number:
                     is_number = True
                 
                 # string processing
-                if char == "\"" and prev_char != "\\":
+                if char == "\"" and prev_char != escape_character:
                     self.lexme = self.lexme[:-1]
                     is_string = not is_string
                     if not is_string:
