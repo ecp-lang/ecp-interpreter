@@ -1,0 +1,18 @@
+SUBROUTINE TotalOut(a, b)
+    c ← a + b
+    WHILE a < c
+        a ← a + 1
+        b ← b - a
+    ENDWHILE
+    RETURN b
+ENDSUBROUTINE
+
+OUTPUT TotalOut(3, 4)
+
+c := 0
+
+REPEAT
+    c := c + 1
+
+    OUTPUT c
+UNTIL c > 5

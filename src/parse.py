@@ -4,30 +4,43 @@ from collections import OrderedDict
 """
 grammar
 
-program  :  statement_list EOF
+program               :  statement_list EOF
 
-statement_list  :  (statement)*
+statement_list        :  (statement)*
 
-statement  :  assignment_statement
+statement             :  assignment_statement
 
 assignment_statement  :  variable ASSIGN expr
 
-magic_function  :  MAGIC expr (COMMA expr)*
+magic_function        :  MAGIC expr (COMMA expr)*
 
-expr  :  term (( PLUS | MINUS ) term)*
+if_statement          : IF condition THEN statement_list ( else_if_statement | else_statement )? ENDIF
+else_if_statement     :  ELSE if_statement
+else_statement        :  ELSE statement_list
 
-term  :  factor (( MUL | DIV ) factor)*
+expr                  : relation
+relation              : arithmetic_expr (rel_op arithmetic_expr)?
+rel_op                : LESS_THAN
+                      | GREATER_THAN
+                      | EQUAL
+                      | LESS_EQUAL
+                      | GREATER_EQUAL
+                      | NOT_EQUAL
+arithmetic_expr       : term ((PLUS | MINUS) term)*
+term                  : factor ((MUL | INT_DIV | DIV) factor)
+factor                : PLUS factor
+                      | MINUS factor
+                      | INTEGER_CONST
+                      | REAL_CONST
+                      | LPAREN expr RPAREN
+                      | TRUE
+                      | FALSE
+                      | variable
+                      | function_call
 
-factor  : PLUS factor
-        | MINUS factor
-        | INTEGER
-        | FLOAT
-        | LPAREN expr RPAREN
-        | variable
+variable              :  ID
 
-variable  :  ID
-
-assign  :  = | ←
+assign                :  = | ←
 
 """
 
@@ -119,10 +132,25 @@ class ParseError(Exception):
 class InterpreterError(Exception):
     pass
 
-class UserInputStatement(Subroutine):
+class BuiltinSubroutineCall(AST):
     def __init__(self, subroutine_token, parameters):
         self.subroutine_token = subroutine_token
         self.parameters = parameters
+
+class IfStatement(AST):
+    def __init__(self, condition):
+        self.condition = condition
+        self.consequences = []
+        self.alternatives = []
+    
+
+class WhileStatement(AST):
+    def __init__(self, condition):
+        self.condition = condition
+        self.consequences = []
+
+class RepeatUntilStatement(WhileStatement):
+    pass
 
 #class BuiltinType(object):
 #    def __init__(self, value):
@@ -155,12 +183,22 @@ class Parser:
         else:
             raise ParseError(f"Unexpected token: {self.current_token}")
 
-    
+    def eat_gap(self):
+        while self.current_token.type in (TokenType.NEWLINE,):
+            self.eat(self.current_token.type)
+
+
     @property
     def current_token(self):
         if self.token_num >= len(self.lexer.tokens):
             return Token(None, TokenType.EOF)
         return self.lexer.tokens[self.token_num]
+    
+    @property
+    def next_token(self):
+        if self.token_num + 1 >= len(self.lexer.tokens):
+            return Token(None, TokenType.EOF)
+        return self.lexer.tokens[self.token_num + 1]
     
     def error(self):
         raise ParseError(self.current_token)
@@ -199,9 +237,17 @@ class Parser:
         elif self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
         elif self.current_token.type == TokenType.BUILTIN_FUNCTION:
-            node = self.builtin_function()
+            node = self.builtin_function_call()
         elif self.current_token.type == TokenType.KEYWORD:
             node = self.process_keyword()
+        elif self.current_token.type == TokenType.IF:
+            node = self.if_statement()
+            self.eat(TokenType.KEYWORD)
+        elif self.current_token.type == TokenType.WHILE:
+            node = self.while_statement()
+            self.eat(TokenType.KEYWORD)
+        elif self.current_token.type == TokenType.REPEAT:
+            node = self.repeat_until_statement()
         else:
             node = self.empty()
         return node
@@ -245,6 +291,10 @@ class Parser:
             self.eat(TokenType.SUB)
             node = UnaryOp(token, self.factor())
             return node
+        elif token.type == TokenType.NOT:
+            self.eat(TokenType.NOT)
+            node = UnaryOp(token, self.factor())
+            return node
         elif token.type == TokenType.INT:
             self.eat(TokenType.INT)
             return Num(token)
@@ -265,7 +315,7 @@ class Parser:
         elif token.type == TokenType.MAGIC:
             return self.magic_function()
         elif self.current_token.type == TokenType.BUILTIN_FUNCTION:
-            return self.builtin_function()
+            return self.builtin_function_call()
         else:
             node = self.variable()
             if self.current_token.type == TokenType.LPAREN:
@@ -277,31 +327,56 @@ class Parser:
         """term : factor (( MUL | DIV ) factor)* """
         node = self.factor()
 
-        while self.current_token.type in (TokenType.MUL, TokenType.DIV):
+        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV):
             token = self.current_token
-            if token.type == TokenType.MUL:
-                self.eat(TokenType.MUL)
-            elif token.type == TokenType.DIV:
-                self.eat(TokenType.DIV)
+            self.eat(token.type)
         
             node = BinOp(left=node, op=token, right=self.factor())
         
         return node
     
     def expr(self):
+        return self.relation()
+
+    def arithmetic_expr(self):
         """expr   :  term (( PLUS | MINUS ) term)*
         """
         node = self.term()
 
         while self.current_token.type in (
             TokenType.ADD, TokenType.SUB, 
-            TokenType.GT, TokenType.GE, TokenType.EQ, TokenType.NE, TokenType.LT, TokenType.LE
+            TokenType.GT, TokenType.GE, TokenType.EQ, TokenType.NE, TokenType.LT, TokenType.LE,
+            TokenType.AND, TokenType.OR
         ):
             token = self.current_token
             self.eat(token.type)
             
             node = BinOp(left=node, op=token, right=self.term())
         
+        return node
+    
+    def relation(self):
+        """
+        relation : arithmetic_expr (rel_op arithmetic_expr)?
+        rel_op   : LESS_THAN
+                 | GREATER_THAN
+                 | EQUAL
+                 | LESS_EQUAL
+                 | GREATER_EQUAL
+                 | NOT_EQUAL
+        """
+        node = self.arithmetic_expr()
+        if self.current_token.type in (
+            TokenType.LT,
+            TokenType.GT,
+            TokenType.LE,
+            TokenType.GE,
+            TokenType.EQ,
+            TokenType.NE,
+        ):
+            token = self.current_token
+            self.eat(token.type)
+            node = BinOp(left=node, op=token, right=self.arithmetic_expr())
         return node
 
     def magic_function(self):
@@ -321,7 +396,7 @@ class Parser:
 
         return node
     
-    def builtin_function(self):
+    def builtin_function_call(self):
         token = self.current_token
         self.eat(TokenType.BUILTIN_FUNCTION)
         self.eat(TokenType.LPAREN)
@@ -333,8 +408,8 @@ class Parser:
                 self.eat(TokenType.COMMA)
                 parameters.append(self.param())
         self.eat(TokenType.RPAREN)
-        if token.value == "USERINPUT":
-            return UserInputStatement(token, parameters)
+        
+        return BuiltinSubroutineCall(token, parameters)
     
     def declare_param(self):
         var = self.variable()
@@ -391,6 +466,61 @@ class Parser:
         else:
             node = self.empty()
         return node
+    
+    def if_statement(self):
+        token = self.current_token
+        self.eat(TokenType.IF)
+
+        condition = self.expr()
+        self.eat_gap()
+        self.eat(TokenType.THEN)
+
+        consequences = self.statement_list()
+
+        alternatives = []
+        if self.current_token.type == TokenType.ELSE and self.next_token.type == TokenType.IF:
+            alternatives.append(self.elseif_statement())
+        elif self.current_token.type == TokenType.ELSE:
+            alternatives.extend(self.else_statement())
+        
+        node = IfStatement(condition=condition)
+        node.consequences = consequences
+        node.alternatives = alternatives
+        return node
+
+    def elseif_statement(self):
+        self.eat(TokenType.ELSE)
+        return self.if_statement()
+    
+    def else_statement(self):
+        self.eat(TokenType.ELSE)
+        return self.statement_list()
+    
+    def while_statement(self):
+        token = self.current_token
+        self.eat(TokenType.WHILE)
+        condition = self.expr()
+        consequences = self.statement_list()
+
+        node = WhileStatement(condition)
+        node.consequences = consequences
+
+        return node
+    
+    def repeat_until_statement(self):
+        token = self.current_token
+        self.eat(TokenType.REPEAT)
+        
+        consequences = self.statement_list()
+        self.eat_gap()
+        self.eat(TokenType.UNTIL)
+        condition = self.expr()
+
+        node = RepeatUntilStatement(condition)
+        node.consequences = consequences
+
+        return node
+    
 
     def parse(self):
         node = self.program()
@@ -430,13 +560,19 @@ class NodeVisitor(object):
         raise Exception('No visit_{} method'.format(type(node).__name__))
 
 
-
+class BuiltinFunctionContainer:
+    def __init__(self, interpreter):
+        self.interpreter = interpreter
+    
+    def USERINPUT(self, *args):
+        return input(self.interpreter.visit(args[0].value) if len(args) > 0 else "")
 
 class Interpreter(NodeVisitor):
     def __init__(self, parser):
         self.parser = parser
         self.current_scope = None
         self.RETURN = False
+        self.builtin_subroutines_container = BuiltinFunctionContainer(self)
     
     def visit_BinOp(self, node):
         if node.op.type == TokenType.ADD:
@@ -447,6 +583,8 @@ class Interpreter(NodeVisitor):
             return self.visit(node.left) * self.visit(node.right)
         elif node.op.type == TokenType.DIV:
             return self.visit(node.left) / self.visit(node.right)
+        elif node.op.type == TokenType.INT_DIV:
+            return self.visit(node.left) // self.visit(node.right)
         
         elif node.op.type == TokenType.GT:
             return self.visit(node.left) > self.visit(node.right)
@@ -460,6 +598,10 @@ class Interpreter(NodeVisitor):
             return self.visit(node.left) < self.visit(node.right)
         elif node.op.type == TokenType.LE:
             return self.visit(node.left) <= self.visit(node.right)
+        elif node.op.type == TokenType.AND:
+            return self.visit(node.left) and self.visit(node.right)
+        elif node.op.type == TokenType.OR:
+            return self.visit(node.left) or self.visit(node.right)
         
     
     def visit_UnaryOp(self, node):
@@ -468,6 +610,8 @@ class Interpreter(NodeVisitor):
             return +self.visit(node.expr)
         elif op == TokenType.SUB:
             return -self.visit(node.expr)
+        elif op == TokenType.NOT:
+            return not self.visit(node.expr)
 
     def visit_Num(self, node):
         return node.value
@@ -535,10 +679,31 @@ class Interpreter(NodeVisitor):
         self.current_scope = self.current_scope.enclosing_scope
         return result
     
-    def visit_UserInputStatement(self, node):
-        prompt = [self.visit(n) for n in node.parameters]
-        prompt = prompt[0] if len(prompt) > 0 else ""
-        return input(prompt)
+    def visit_BuiltinSubroutineCall(self, node):
+        func = getattr(self.builtin_subroutines_container, node.subroutine_token.value, None)
+        if func:
+            return func(*node.parameters)
+        
+    def visit_IfStatement(self, node):
+        if self.visit(node.condition):
+            for statement in node.consequences:
+                self.visit(statement)
+        else:
+            for statement in node.alternatives:
+                self.visit(statement)
+    
+    def visit_WhileStatement(self, node):
+        while self.visit(node.condition):
+            for statement in node.consequences:
+                self.visit(statement)
+    
+    def visit_RepeatUntilStatement(self, node):
+        while True:
+            for statement in node.consequences:
+                self.visit(statement)
+            
+            if self.visit(node.condition):
+                break
     
     def interpret(self):
         tree = self.parser.parse()

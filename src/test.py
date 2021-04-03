@@ -23,7 +23,23 @@ a ← 1 > 0 < -1
 OUTPUT a
 t()
 
-OUTPUT USERINPUT()
+a := "a"
+
+IF a = "a" THEN 
+    OUTPUT "AAAA"
+ELSE IF a = "b" THEN
+    OUTPUT "BBBB"
+ELSE IF a = "c" THEN
+    OUTPUT "CCCC"
+ELSE
+    IF a = "d" THEN
+        OUTPUT "a is d"
+    ELSE
+        OUTPUT "e"
+    ENDIF
+ENDIF
+
+OUTPUT NOT (True AND False)
 """
 
 
