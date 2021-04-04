@@ -18,6 +18,9 @@ if_statement          : IF condition THEN statement_list ( else_if_statement | e
 else_if_statement     :  ELSE if_statement
 else_statement        :  ELSE statement_list
 
+for_loop              : FOR assignment_statement TO expr (STEP expr)? statement_list ENDFOR
+                      | FOR variable IN expr statement_list ENDFOR
+
 expr                  : relation
 relation              : arithmetic_expr (rel_op arithmetic_expr)?
 rel_op                : LESS_THAN
@@ -163,6 +166,16 @@ class WhileStatement(AST):
         self.condition = condition
         self.consequences = []
 
+class ForLoop(AST):
+    def __init__(self, variable, iterator):
+        self.variable = variable
+        self.iterator = iterator
+        self.to_step = False
+        self.start = None
+        self.end = None
+        self.step = None
+        self.loop = []
+
 class RepeatUntilStatement(WhileStatement):
     pass
 
@@ -262,6 +275,8 @@ class Parser:
             self.eat(TokenType.KEYWORD)
         elif self.current_token.type == TokenType.REPEAT:
             node = self.repeat_until_statement()
+        elif self.current_token.type == TokenType.FOR:
+            node = self.for_loop()
         else:
             node = self.empty()
         return node
@@ -562,6 +577,38 @@ class Parser:
         #print(values)
         return Array(values)
     
+    def for_loop(self):
+        """for_loop   : FOR ID ASSIGN expr TO expr (STEP expr)? statement_list ENDFOR
+                      | FOR variable IN expr statement_list ENDFOR
+        """
+        loop = []
+        self.eat(TokenType.FOR)
+        variable = self.variable()
+        f = ForLoop(variable, None)
+        if self.current_token.type == TokenType.ASSIGN:
+            f.to_step = True
+            # FOR ID ASSIGN expr TO expr (STEP expr)? statement_list ENDFOR
+            self.eat(TokenType.ASSIGN)
+            f.start = self.expr()
+            self.eat(TokenType.TO)
+            f.end = self.expr()
+            if self.current_token.type == TokenType.STEP:
+                self.eat(TokenType.STEP)
+                f.step = self.expr()
+                
+            self.eat_gap()
+            f.loop = self.statement_list()
+            
+        elif self.current_token.type == TokenType.IN:
+            # FOR variable IN expr statement_list ENDFOR
+            self.eat(TokenType.IN)
+            f.iterator = self.expr()
+            self.eat_gap()
+            f.loop = self.statement_list()
+        
+        self.eat(TokenType.KEYWORD)
+        return f
+    
 
     def parse(self):
         node = self.program()
@@ -693,7 +740,7 @@ class Interpreter(NodeVisitor):
         var_name = node.left.value
         if var_name in self.current_scope._variables:
             val = self.visit_Var(node.left, traverse_lists=False)
-            if isinstance(val, (list, str)):
+            if isinstance(val, (list, str)) and len(node.left.array_indexes) > 0:
                 self.set_element(
                     self.current_scope._variables[node.left.value], 
                     node.left.array_indexes, 
@@ -781,6 +828,21 @@ class Interpreter(NodeVisitor):
             
             if self.visit(node.condition):
                 break
+    
+    def visit_ForLoop(self, node: ForLoop):
+        if node.to_step:
+            step = self.visit(node.step) if node.step else 1
+            for i in range(self.visit(node.start), self.visit(node.end)+1, step):
+                self.current_scope.insert(node.variable, i)
+                for statement in node.loop:
+                    self.visit(statement)
+        else:
+            iterator = self.visit(node.iterator)
+            for i in iterator:
+                current = self.visit(i) if isinstance(i, AST) else i
+                self.current_scope.insert(node.variable, current)
+                for statement in node.loop:
+                    self.visit(statement)
     
     def interpret(self):
         tree = self.parser.parse()

@@ -1,6 +1,7 @@
 from tabulate import tabulate
 from typing import *
 from enum import Enum
+import string
 
 class TokenType(Enum):
     ASSIGN = "ASSIGN"
@@ -24,7 +25,6 @@ class TokenType(Enum):
     OR = "OR"
     NOT = "NOT"
     
-    ID = "ID"
     NEWLINE = "NEWLINE"
     BRACKET = "BRACKET"
     LPAREN = "LPAREN"
@@ -32,9 +32,7 @@ class TokenType(Enum):
     LS_PAREN = "LS_PAREN"
     RS_PAREN = "RS_PAREN"
 
-    KEYWORD = "KEYWORD"
     STRING_QUOTE = "STRING_QUOTE"
-    MAGIC = "MAGIC"
     BOOLEAN = "BOOLEAN"
     COMMA = ","
     COLON = "COLON"
@@ -50,6 +48,9 @@ class TokenType(Enum):
     ARRAY = "ARRAY"
     BUILTIN_FUNCTION = "BUILTIN_FUNCTION"
 
+    ID = "ID"
+    KEYWORD = "KEYWORD"
+    MAGIC = "MAGIC"
     IF = "IF"
     ELSE = "ELSE"
     THEN = "THEN"
@@ -57,6 +58,10 @@ class TokenType(Enum):
     WHILE = "WHILE"
     REPEAT = "REPEAT"
     UNTIL = "UNTIL"
+    FOR = "FOR"
+    TO = "TO"
+    IN = "IN"
+    STEP = "STEP"
 
 class Token:
     def __init__(self, value, type, lineno=None, column=None):
@@ -102,7 +107,7 @@ symbols = { # single char symbols
     "[":  TokenType.LS_PAREN,
     "]":  TokenType.RS_PAREN, 
     ",":  TokenType.COMMA,
-    "\"": TokenType.STRING_QUOTE,
+    "'": TokenType.STRING_QUOTE,
     ":":  TokenType.COLON
 }
 #symbols = [] # single-char keywords
@@ -129,6 +134,12 @@ keywords = {
 
     "REPEAT": TokenType.REPEAT,
     "UNTIL": TokenType.UNTIL,
+
+    "FOR": TokenType.FOR,
+    "TO": TokenType.TO,
+    "IN": TokenType.IN,
+    "STEP": TokenType.STEP,
+    "ENDFOR": TokenType.KEYWORD,
 }
 
 types = {
@@ -171,6 +182,9 @@ class Lexer:
         is_number = False
         prev_char = ""
         single_line_comment = False
+        ID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+        tok = list(TokenType)
+        key_tokens = tok[tok.index(TokenType.ID):tok.index(TokenType.STEP)+1]
         
 
         for i,char in enumerate(string):
@@ -188,11 +202,11 @@ class Lexer:
                     self.lexme = ""
                     continue
                 # Int and Real (float) processing
-                if not is_string and char.isdigit() and not is_number:
+                if not is_string and char.isdigit() and not is_number and len(self.lexme) < 2:
                     is_number = True
                 
                 # string processing
-                if char == "\"" and prev_char != escape_character:
+                if char == "'" and prev_char != escape_character:
                     self.lexme = self.lexme[:-1]
                     is_string = not is_string
                     if not is_string:
@@ -226,9 +240,12 @@ class Lexer:
                             else:
                                 if string[i+1] in ("="):
                                     continue
+                                token_type = KEYWORDS.get(self.lexme, TokenType.ID)
+                                if token_type in key_tokens and string[i+1] in ID_CHARS:
+                                    continue
                                 self.addToken(
                                     self.lexme,
-                                    KEYWORDS.get(self.lexme, TokenType.ID),
+                                    token_type,
                                 )
                         is_number = False
 
