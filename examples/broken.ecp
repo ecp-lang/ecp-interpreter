@@ -1,0 +1,10 @@
+found := True
+i := 1
+
+OUTPUT (-1) + 1
+
+OUTPUT (NOT found) AND (i != 1)
+
+OUTPUT 1 * 4 > 3 * 0
+
+# fixed this edge case which didn't work properly

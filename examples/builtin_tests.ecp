@@ -1,0 +1,7 @@
+t := 'abcdefg'
+
+OUTPUT '2**3 :', 2 ** 3
+OUTPUT 'SQRT(25) :', SQRT(25)
+
+OUTPUT 'POSITION(t, \'b\') :', POSITION(t, 'b')
+OUTPUT 'SUBSTRING(2, 9, \'computer science\') :', SUBSTRING(2, 9, 'computer science')

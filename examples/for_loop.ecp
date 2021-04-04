@@ -1,0 +1,17 @@
+FOR i := 1 TO 5
+    OUTPUT '--', i
+ENDFOR
+
+a := [7,8,9]
+
+FOR i := 0 TO LEN(a)-1
+    OUTPUT 'a[', i, '] is', a[i] 
+ENDFOR
+
+message := 'hello there'
+reversed := ''
+
+FOR char IN message
+    reversed := char + reversed
+ENDWHILE
+OUTPUT reversed
