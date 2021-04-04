@@ -1,6 +1,10 @@
 found := True
 i := 1
 
-OUTPUT (NOT found) AND i != 1
+OUTPUT (-1) + 1
 
-# this should work, it doesn't, need to rewrite the expr code
+OUTPUT (NOT found) AND (i != 1)
+
+OUTPUT 1 * 4 > 3 * 0
+
+# fixed this edge case which didn't work properly

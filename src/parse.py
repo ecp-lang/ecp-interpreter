@@ -22,8 +22,13 @@ else_statement        :  ELSE statement_list
 for_loop              : FOR assignment_statement TO expr (STEP expr)? statement_list ENDFOR
                       | FOR variable IN expr statement_list ENDFOR
 
-expr                  : relation
-relation              : arithmetic_expr (rel_op arithmetic_expr)?
+expr                  : bool_relation
+
+bool_relation         : relation (bool_op relation)*
+bool_op               : AND
+                      | OR
+
+relation              : arithmetic_expr (rel_op arithmetic_expr)*
 rel_op                : LESS_THAN
                       | GREATER_THAN
                       | EQUAL
@@ -391,7 +396,7 @@ class Parser:
         return node
     
     def expr(self):
-        return self.relation()
+        return self.bool_relation()
 
     def arithmetic_expr(self):
         """expr   :  term (( PLUS | MINUS ) term)*
@@ -409,9 +414,24 @@ class Parser:
         
         return node
     
+    def bool_relation(self):
+        """
+        bool_relation : relation (bool_op relation)*
+        bool_op       : AND
+                      | OR
+        """
+        node = self.relation()
+        while self.current_token.type in (
+            TokenType.AND, TokenType.OR,
+        ):
+            token = self.current_token
+            self.eat(token.type)
+            node = BinOp(left=node, op=token, right=self.relation())
+        return node
+        
     def relation(self):
         """
-        relation : arithmetic_expr (rel_op arithmetic_expr)?
+        relation : arithmetic_expr (rel_op arithmetic_expr)*
         rel_op   : LESS_THAN
                  | GREATER_THAN
                  | EQUAL
@@ -420,14 +440,13 @@ class Parser:
                  | NOT_EQUAL
         """
         node = self.arithmetic_expr()
-        if self.current_token.type in (
+        while self.current_token.type in (
             TokenType.LT,
             TokenType.GT,
             TokenType.LE,
             TokenType.GE,
             TokenType.EQ,
             TokenType.NE,
-            TokenType.AND, TokenType.OR
         ):
             token = self.current_token
             self.eat(token.type)
@@ -437,16 +456,12 @@ class Parser:
     def magic_function(self):
         token = self.current_token
         self.eat(TokenType.MAGIC)
-        if self.current_token.type == TokenType.LPAREN:
-            self.eat(TokenType.LPAREN)
         parameters = []
         if self.current_token.type not in (TokenType.EOF, TokenType.NEWLINE, TokenType.RPAREN):
             parameters.append(self.expr())
             while self.current_token.type == TokenType.COMMA:
                 self.eat(TokenType.COMMA)
                 parameters.append(self.expr())
-        if self.current_token.type == TokenType.RPAREN:
-            self.eat(TokenType.RPAREN)
         node = Magic(token, parameters)
 
         return node
