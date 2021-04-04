@@ -2,5 +2,6 @@ __pycache__
 math_tests
 .vscode
 env
-.spec
 build
+dist
+*.spec
