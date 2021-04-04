@@ -1,6 +1,7 @@
 from lexer import *
 from parse import *
 import argparse
+import os
 
 parser = argparse.ArgumentParser(description="ECP interpreter")
 parser.add_argument("inputfile", type=argparse.FileType("r", encoding="utf-8"))
@@ -29,3 +30,4 @@ i = Interpreter(p)
 
 i.interpret()
 #print("global variables:", i.current_scope)
+os.system("pause")
