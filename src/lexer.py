@@ -14,6 +14,7 @@ class TokenType(Enum):
     DIV = "DIV"
     INT_DIV = "INT_DIV"
     MOD = "MOD"
+    POW = "POW"
 
     LT = "LT"
     LE = "LE"
@@ -88,6 +89,8 @@ symbols = { # single char symbols
     "DIV": TokenType.INT_DIV,
     "MOD": TokenType.MOD,
     "/":  TokenType.DIV,
+    "**": TokenType.POW,
+    "POW": TokenType.POW,
     
     "!=": TokenType.NE,
     "<=": TokenType.LE,
@@ -116,11 +119,14 @@ builtin_functions = [
     "USERINPUT", "LEN", "POSITION", "SUBSTRING", 
     "STRING_TO_INT", "STRING_TO_REAL", "INT_TO_STRING", 
     "REAL_TO_STRING", "CHAR_TO_CODE", "CODE_TO_CHAR", "RANDOM_INT",
+    "SQRT",
 ]
 keywords = {
     "SUBROUTINE": TokenType.KEYWORD, 
     "ENDSUBROUTINE": TokenType.KEYWORD, 
     "RETURN": TokenType.MAGIC,
+    "CONTINUE": TokenType.MAGIC,
+    "BREAK": TokenType.MAGIC,
     "USERINPUT": TokenType.BUILTIN_FUNCTION,
     "LEN": TokenType.BUILTIN_FUNCTION,
     "WHILE": TokenType.KEYWORD, 
@@ -150,7 +156,8 @@ keywords = {
 types = {
     "Real": TokenType.TYPE,
     "Int": TokenType.TYPE,
-    "Bool": TokenType.TYPE
+    "Bool": TokenType.TYPE,
+    "String": TokenType.TYPE,
 }
 
 
@@ -243,7 +250,7 @@ class Lexer:
                                     KEYWORDS.get(self.lexme, TokenType.ID),
                                 )
                             else:
-                                if string[i+1] in ("="):
+                                if string[i+1] in ("=", "*"):
                                     continue
                                 token_type = KEYWORDS.get(self.lexme, TokenType.ID)
                                 if token_type in key_tokens and string[i+1] in ID_CHARS:

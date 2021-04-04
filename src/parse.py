@@ -1,5 +1,6 @@
 from lexer import *
 import random
+import math
 
 """
 grammar
@@ -31,6 +32,9 @@ rel_op                : LESS_THAN
                       | NOT_EQUAL
 arithmetic_expr       : term ((PLUS | MINUS) term)*
 term                  : factor ((MUL | INT_DIV | DIV) factor)
+
+
+
 factor                : PLUS factor
                       | MINUS factor
                       | INTEGER_CONST
@@ -157,14 +161,14 @@ class BuiltinSubroutineCall(AST):
 class IfStatement(AST):
     def __init__(self, condition):
         self.condition = condition
-        self.consequences = []
+        self.consequence = []
         self.alternatives = []
     
 
 class WhileStatement(AST):
     def __init__(self, condition):
         self.condition = condition
-        self.consequences = []
+        self.consequence = []
 
 class ForLoop(AST):
     def __init__(self, variable, iterator):
@@ -232,13 +236,14 @@ class Parser:
 
     def program(self):
         
+        return self.compound()
+    
+    def compound(self):
         nodes = self.statement_list()
-        
-        root = Compound()
-        for node in nodes:
-            root.children.append(node)
+        node = Compound()
+        node.children = nodes
 
-        return root
+        return node
     
     def statement_list(self):
         node = self.statement()
@@ -263,7 +268,7 @@ class Parser:
                 node = self.assignment_statement(var)
         elif self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
-        elif self.current_token.type == TokenType.BUILTIN_FUNCTION:
+        elif self.current_token.type in (TokenType.BUILTIN_FUNCTION, TokenType.TYPE):
             node = self.builtin_function_call()
         elif self.current_token.type == TokenType.KEYWORD:
             node = self.process_keyword()
@@ -353,7 +358,7 @@ class Parser:
             return String(token)
         elif token.type == TokenType.MAGIC:
             return self.magic_function()
-        elif self.current_token.type == TokenType.BUILTIN_FUNCTION:
+        elif self.current_token.type in (TokenType.BUILTIN_FUNCTION, TokenType.TYPE):
             return self.builtin_function_call()
         else:
             node = self.variable()
@@ -364,9 +369,20 @@ class Parser:
     
     def term(self):
         """term : factor (( MUL | DIV ) factor)* """
+        node = self.actual_term()
+
+        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV):
+            token = self.current_token
+            self.eat(token.type)
+        
+            node = BinOp(left=node, op=token, right=self.actual_term())
+        
+        return node
+    
+    def actual_term(self):
         node = self.factor()
 
-        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV, TokenType.MOD):
+        while self.current_token.type in (TokenType.POW, TokenType.MOD):
             token = self.current_token
             self.eat(token.type)
         
@@ -384,8 +400,7 @@ class Parser:
 
         while self.current_token.type in (
             TokenType.ADD, TokenType.SUB, 
-            TokenType.GT, TokenType.GE, TokenType.EQ, TokenType.NE, TokenType.LT, TokenType.LE,
-            TokenType.AND, TokenType.OR
+            #TokenType.GT, TokenType.GE, TokenType.EQ, TokenType.NE, TokenType.LT, TokenType.LE,
         ):
             token = self.current_token
             self.eat(token.type)
@@ -412,6 +427,7 @@ class Parser:
             TokenType.GE,
             TokenType.EQ,
             TokenType.NE,
+            TokenType.AND, TokenType.OR
         ):
             token = self.current_token
             self.eat(token.type)
@@ -437,7 +453,7 @@ class Parser:
     
     def builtin_function_call(self):
         token = self.current_token
-        self.eat(TokenType.BUILTIN_FUNCTION)
+        self.eat(token.type) # TokenType.BUILTIN_FUNCTION or TokenType.TYPE
         self.eat(TokenType.LPAREN)
 
         parameters = []
@@ -481,8 +497,7 @@ class Parser:
                 self.eat(TokenType.COMMA)
                 parameters.append(self.declare_param())
         self.eat(TokenType.RPAREN)
-        compound = Compound()
-        compound.children = self.statement_list()
+        compound = self.compound()
         self.eat(TokenType.KEYWORD)
         return Subroutine(token, parameters, compound)
 
@@ -514,7 +529,7 @@ class Parser:
         self.eat_gap()
         self.eat(TokenType.THEN)
 
-        consequences = self.statement_list()
+        consequence = self.compound()
 
         alternatives = []
         if self.current_token.type == TokenType.ELSE and self.next_token.type == TokenType.IF:
@@ -523,7 +538,7 @@ class Parser:
             alternatives.extend(self.else_statement())
         
         node = IfStatement(condition=condition)
-        node.consequences = consequences
+        node.consequence = consequence
         node.alternatives = alternatives
         return node
 
@@ -533,16 +548,16 @@ class Parser:
     
     def else_statement(self):
         self.eat(TokenType.ELSE)
-        return self.statement_list()
+        return self.compound()
     
     def while_statement(self):
         token = self.current_token
         self.eat(TokenType.WHILE)
         condition = self.expr()
-        consequences = self.statement_list()
+        consequence = self.compound()
 
         node = WhileStatement(condition)
-        node.consequences = consequences
+        node.consequence = consequence
 
         return node
     
@@ -550,13 +565,13 @@ class Parser:
         token = self.current_token
         self.eat(TokenType.REPEAT)
         
-        consequences = self.statement_list()
+        consequence = self.compound()
         self.eat_gap()
         self.eat(TokenType.UNTIL)
         condition = self.expr()
 
         node = RepeatUntilStatement(condition)
-        node.consequences = consequences
+        node.consequence = consequence
 
         return node
     
@@ -597,14 +612,14 @@ class Parser:
                 f.step = self.expr()
                 
             self.eat_gap()
-            f.loop = self.statement_list()
+            f.loop = self.compound()
             
         elif self.current_token.type == TokenType.IN:
             # FOR variable IN expr statement_list ENDFOR
             self.eat(TokenType.IN)
             f.iterator = self.expr()
             self.eat_gap()
-            f.loop = self.statement_list()
+            f.loop = self.compound()
         
         self.eat(TokenType.KEYWORD)
         return f
@@ -703,6 +718,19 @@ class BuiltinFunctionContainer:
         b = self.interpreter.visit(b.value)
 
         return random.randint(a, b)
+    
+    def SQRT(self, num: Param):
+        num = self.interpreter.visit(num.value)
+        return math.sqrt(num)
+    
+    def Int(self, other: Param):
+        return int(self.interpreter.visit(other.value))
+    
+    def Real(self, other: Param):
+        return float(self.interpreter.visit(other.value))
+    
+    def String(self, other: Param):
+        return str(self.interpreter.visit(other.value))
 
 
 
@@ -711,6 +739,8 @@ class Interpreter(NodeVisitor):
         self.parser = parser
         self.current_scope = None
         self.RETURN = False
+        self.CONTINUE = False
+        self.BREAK = False
         self.builtin_subroutines_container = BuiltinFunctionContainer(self)
     
     def visit_BinOp(self, node):
@@ -726,6 +756,8 @@ class Interpreter(NodeVisitor):
             return self.visit(node.left) // self.visit(node.right)
         elif node.op.type == TokenType.MOD:
             return self.visit(node.left) % self.visit(node.right)
+        elif node.op.type == TokenType.POW:
+            return self.visit(node.left) ** self.visit(node.right)
         
         elif node.op.type == TokenType.GT:
             return self.visit(node.left) > self.visit(node.right)
@@ -768,10 +800,9 @@ class Interpreter(NodeVisitor):
     
     def visit_Compound(self, node):
         for child in node.children:
-            self.visit(child)
-            if self.RETURN:
-                self.RETURN = False
+            if self.RETURN or self.BREAK | self.CONTINUE:
                 break
+            self.visit(child)
 
     def visit_NoOp(self, node):
         pass
@@ -823,6 +854,10 @@ class Interpreter(NodeVisitor):
             values = [self.visit(n) for n in node.parameters]
             self.RETURN_VALUE = values[0] if len(values) > 0 else None
             self.RETURN = True
+        elif node.token.value == "CONTINUE":
+            self.CONTINUE = True
+        elif node.token.value == "BREAK":
+            self.BREAK = True
 
     def visit_Subroutine(self, node):
         self.current_scope.insert(node.token, node)
@@ -845,7 +880,9 @@ class Interpreter(NodeVisitor):
         self.current_scope = function_scope
         # execute function
         self.RETURN_VALUE = None
+        self.RETURN = False
         self.visit(function.compound)
+        self.RETURN = False
         result = self.RETURN_VALUE
         self.RETURN_VALUE = None
         self.current_scope = self.current_scope.enclosing_scope
@@ -858,21 +895,31 @@ class Interpreter(NodeVisitor):
         
     def visit_IfStatement(self, node):
         if self.visit(node.condition):
-            for statement in node.consequences:
-                self.visit(statement)
+            self.visit(node.consequence)
         else:
             for statement in node.alternatives:
                 self.visit(statement)
     
     def visit_WhileStatement(self, node):
         while self.visit(node.condition):
-            for statement in node.consequences:
-                self.visit(statement)
+            self.visit(node.consequence)
+            if self.CONTINUE:
+                self.CONTINUE = False
+                continue
+            if self.BREAK:
+                self.BREAK = False
+                break
     
     def visit_RepeatUntilStatement(self, node):
         while True:
-            for statement in node.consequences:
-                self.visit(statement)
+            self.visit(node.consequence)
+
+            if self.CONTINUE:
+                self.CONTINUE = False
+                continue
+            if self.BREAK:
+                self.BREAK = False
+                break
             
             if self.visit(node.condition):
                 break
@@ -882,15 +929,25 @@ class Interpreter(NodeVisitor):
             step = self.visit(node.step) if node.step else 1
             for i in range(self.visit(node.start), self.visit(node.end)+1, step):
                 self.current_scope.insert(node.variable, i)
-                for statement in node.loop:
-                    self.visit(statement)
+                self.visit(node.loop)
+                if self.CONTINUE:
+                    self.CONTINUE = False
+                    continue
+                if self.BREAK:
+                    self.BREAK = False
+                    break
         else:
             iterator = self.visit(node.iterator)
             for i in iterator:
                 current = self.visit(i) if isinstance(i, AST) else i
                 self.current_scope.insert(node.variable, current)
-                for statement in node.loop:
-                    self.visit(statement)
+                self.visit(node.loop)
+                if self.CONTINUE:
+                    self.CONTINUE = False
+                    continue
+                if self.BREAK:
+                    self.BREAK = False
+                    break
     
     def interpret(self):
         tree = self.parser.parse()
