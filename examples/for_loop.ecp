@@ -13,5 +13,5 @@ reversed := ''
 
 FOR char IN message
     reversed := char + reversed
-ENDFOR
+ENDWHILE
 OUTPUT reversed

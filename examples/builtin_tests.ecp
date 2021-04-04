@@ -1,0 +1,4 @@
+t := 'abcdefg'
+
+OUTPUT 'POSITION(t, \'b\') :', POSITION(t, 'b')
+OUTPUT 'SUBSTRING(2, 9, \'computer science\') :', SUBSTRING(2, 9, 'computer science')

@@ -1,5 +1,5 @@
 from lexer import *
-from collections import OrderedDict
+import random
 
 """
 grammar
@@ -657,6 +657,54 @@ class BuiltinFunctionContainer:
     
     def LEN(self, *args):
         return len(self.interpreter.visit(args[0].value))
+    
+    def POSITION(self, s: Param, c: Param, *args):
+        string = self.interpreter.visit(s.value)
+        to_match = self.interpreter.visit(c.value)
+
+        try:
+            return string.index(to_match)
+        except ValueError:
+            return -1
+    
+    def SUBSTRING(self, start: Param, end: Param, string: Param, *args):
+        start = self.interpreter.visit(start.value)
+        end = self.interpreter.visit(end.value)
+        string = self.interpreter.visit(string.value)
+
+        return string[start:end+1]
+    
+    def STRING_TO_INT(self, string: Param):
+        string = self.interpreter.visit(string.value)
+        return int(string)
+    
+    def STRING_TO_REAL(self, string: Param):
+        string = self.interpreter.visit(string.value)
+        return float(string)
+    
+    def INT_TO_STRING(self, integer: Param):
+        integer = self.interpreter.visit(integer.value)
+        return str(integer)
+    
+    def REAL_TO_STRING(self, real: Param):
+        real = self.interpreter.visit(real.value)
+        return str(real)
+    
+    def CHAR_TO_CODE(self, char: Param):
+        char = self.interpreter.visit(char.value)
+        return ord(char)
+    
+    def CODE_TO_CHAR(self, code: Param):
+        code = self.interpreter.visit(code.value)
+        return chr(code)
+    
+    def RANDOM_INT(self, a: Param, b: Param):
+        a = self.interpreter.visit(a.value)
+        b = self.interpreter.visit(b.value)
+
+        return random.randint(a, b)
+
+
 
 class Interpreter(NodeVisitor):
     def __init__(self, parser):

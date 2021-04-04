@@ -112,6 +112,11 @@ symbols = { # single char symbols
 }
 #symbols = [] # single-char keywords
 other_symbols = {} # multi-char keywords
+builtin_functions = [
+    "USERINPUT", "LEN", "POSITION", "SUBSTRING", 
+    "STRING_TO_INT", "STRING_TO_REAL", "INT_TO_STRING", 
+    "REAL_TO_STRING", "CHAR_TO_CODE", "CODE_TO_CHAR", "RANDOM_INT",
+]
 keywords = {
     "SUBROUTINE": TokenType.KEYWORD, 
     "ENDSUBROUTINE": TokenType.KEYWORD, 
@@ -150,7 +155,7 @@ types = {
 
 
 
-KEYWORDS = {**symbols, **other_symbols, **keywords, **types}
+KEYWORDS = {**symbols, **other_symbols, **keywords, **types, **{val: TokenType.BUILTIN_FUNCTION for val in builtin_functions}}
 
 class Lexer:
     def __init__(self):
@@ -193,7 +198,7 @@ class Lexer:
                 self.lineno += 1
                 self.column = 0
                 single_line_comment = False
-            if char != white_space or is_string:
+            if (char != white_space or is_string) and not (char == escape_character and prev_char != escape_character):
                 self.lexme += char # adding a char each time
             if char == "#" and prev_char != escape_character:
                 single_line_comment = True
@@ -248,5 +253,6 @@ class Lexer:
                                     token_type,
                                 )
                         is_number = False
+            prev_char = char
 
         return self.tokens
