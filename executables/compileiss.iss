@@ -5,7 +5,7 @@
 #define MyAppVersion "1.0 Alpha"
 #define MyAppPublisher "Conqu3red & AGLT (aka Bzup, ALFe)"
 #define MyAppURL "https://github.com/Conqu3red/pseudocode-interpreter"
-#define MyAppExeName "ECPUser.exe"
+#define MyAppExeName "ecp.exe" ; ECPUser.exe is not the correct file association
 #define MyAppAssocName "ECP File"
 #define MyAppAssocExt ".ecp"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
@@ -24,12 +24,12 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\ECP
 ChangesAssociations=yes
 DisableProgramGroupPage=yes
-LicenseFile=C:\Users\alfre\Desktop\ecp\LISCENCE.md
-InfoBeforeFile=C:\Users\alfre\Desktop\ecp\README.md
+LicenseFile=LISCENCE.md
+InfoBeforeFile=README.md
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 OutputBaseFilename=ECPSetup
-SetupIconFile=C:\Users\alfre\Desktop\ecp\icon.ico
+SetupIconFile=icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -41,8 +41,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\Users\alfre\Desktop\ecp\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\alfre\Desktop\ecp\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Code]
