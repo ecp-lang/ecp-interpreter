@@ -5,3 +5,7 @@ env
 build
 dist
 *.spec
+win-src/*.py
+!ECPUser.py
+*.exe
+executables/ecp
