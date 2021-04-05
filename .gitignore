@@ -8,3 +8,4 @@ dist
 win-src/*.py
 !ECPUser.py
 *.exe
+executables/ecp

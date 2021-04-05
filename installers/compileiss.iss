@@ -2,10 +2,10 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Extended Compiler Psuedocode CLI"
-#define MyAppVersion "1.0 Alpha"
+#define MyAppVersion "1.0.0 Alpha"
 #define MyAppPublisher "Conqu3red & AGLT (aka Bzup, ALFe)"
 #define MyAppURL "https://github.com/Conqu3red/pseudocode-interpreter"
-#define MyAppExeName "ECPUser.exe"
+#define MyAppExeName "ecp.exe"
 #define MyAppAssocName "ECP File"
 #define MyAppAssocExt ".ecp"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
@@ -25,12 +25,12 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\ECP
 ChangesAssociations=yes
 DisableProgramGroupPage=yes
-LicenseFile=C:\Users\alfre\Desktop\ecp\LISCENCE.md
-InfoBeforeFile=C:\Users\alfre\Desktop\ecp\README.md
+LicenseFile=..\LICENCE.md
+InfoBeforeFile=..\README.md
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 OutputBaseFilename=ECPSetup
-SetupIconFile=C:\Users\alfre\Desktop\ecp\icon.ico
+SetupIconFile=icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -44,13 +44,13 @@ ChangesEnvironment=true
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
     if CurStep = ssPostInstall 
-     then EnvAddPath(ExpandConstant('{app}') +'\bin');
+     then EnvAddPath(ExpandConstant('{app}') +'');
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
     if CurUninstallStep = usPostUninstall
-    then EnvRemovePath(ExpandConstant('{app}') +'\bin');
+    then EnvRemovePath(ExpandConstant('{app}') +'');
 end;
 
 [Languages]
@@ -61,8 +61,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: envPath; Description: "Add to PATH variable" 
 
 [Files]
-Source: "C:\Users\alfre\Desktop\ecp\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\alfre\Desktop\ecp\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\executables\ecp\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\executables\ecp\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 
@@ -71,8 +71,8 @@ Source: "C:\Users\alfre\Desktop\ecp\*"; DestDir: "{app}"; Flags: ignoreversion r
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppAssocKey}"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}"; ValueType: string; ValueName: ""; ValueData: "{#MyAppAssocName}"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
-Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
-Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\SupportedTypes"; ValueType: string; ValueName: ".myp"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName} --pause"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\SupportedTypes"; ValueType: string; ValueName: "{#MyAppAssocExt}"; ValueData: ""
 
 
 [Icons]
