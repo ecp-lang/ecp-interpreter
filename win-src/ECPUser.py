@@ -1,4 +1,11 @@
 from tkinter import *
+import argparse
+import os
+
+parser = argparse.ArgumentParser(description="ECP interpreter")
+parser.add_argument("inputfile", nargs="?")
+
+options = parser.parse_args()
 
 class Window(Frame):
     def __init__(self, master=None):
@@ -9,10 +16,13 @@ class Window(Frame):
         text = Label(self, text="Version 1.0 Alpha of the ECP CLI is\n installed on this computer.")
         text.place(x=5,y=5)
         #text.pack()
-        
-root = Tk()
-root.wm_title("ECP 1.0A")
-app = Window(root)
-root.iconbitmap('icon.ico')
-root.geometry("200x50")
-root.mainloop()
+
+if os.path.isfile(str(options.inputfile)):
+    os.system("ecp" + " " + str(options.inputfile))
+else:
+    root = Tk()
+    root.wm_title("ECP 1.0A")
+    app = Window(root)
+    root.iconbitmap('icon.ico')
+    root.geometry("200x50")
+    root.mainloop()
