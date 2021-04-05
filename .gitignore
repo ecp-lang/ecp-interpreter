@@ -5,5 +5,5 @@ env
 build
 dist
 *.spec
-win-src\*.py
+win-src/*.py
 !ECPUser.py
