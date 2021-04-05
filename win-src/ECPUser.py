@@ -19,6 +19,7 @@ class Window(Frame):
 
 if os.path.isfile(str(options.inputfile)):
     os.system("ecp" + " " + str(options.inputfile))
+    os.system("pause")
 else:
     root = Tk()
     root.wm_title("ECP 1.0A")
