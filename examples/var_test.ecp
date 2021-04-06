@@ -1,0 +1,28 @@
+#a := [0,[[]]]
+#a[1][0].e := 1
+
+RECORD Car
+    make : String
+    model : String
+    reg : String
+    price : Real
+    noOfDoors : Integer
+ENDRECORD
+
+myCar := Car('Ford', 'Focus', 1399.99, 5)
+OUTPUT myCar.make
+
+RECORD b
+    num : Integer
+ENDRECORD
+
+RECORD a
+    b: Record
+ENDRECORD
+
+test := a(b(1))
+
+OUTPUT test.b.num
+
+t := []
+OUTPUT t.a

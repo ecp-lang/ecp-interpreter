@@ -35,8 +35,9 @@ class TokenType(Enum):
 
     STRING_QUOTE = "STRING_QUOTE"
     BOOLEAN = "BOOLEAN"
-    COMMA = ","
+    COMMA = "COMMA"
     COLON = "COLON"
+    DOT = "DOT"
     TYPE = "TYPE"
 
     INVALID = "INVALID"
@@ -63,6 +64,7 @@ class TokenType(Enum):
     TO = "TO"
     IN = "IN"
     STEP = "STEP"
+    RECORD = "RECORD"
 
 class Token:
     def __init__(self, value, type, lineno=None, column=None):
@@ -110,9 +112,12 @@ symbols = { # single char symbols
     "[":  TokenType.LS_PAREN,
     "]":  TokenType.RS_PAREN, 
     ",":  TokenType.COMMA,
-    "'": TokenType.STRING_QUOTE,
-    ":":  TokenType.COLON
+    "'":  TokenType.STRING_QUOTE,
+    "\"": TokenType.STRING_QUOTE,
+    ":":  TokenType.COLON,
+    ".":  TokenType.DOT,
 }
+QUOTE_CHARS = ("'", "\"")
 #symbols = [] # single-char keywords
 other_symbols = {} # multi-char keywords
 builtin_functions = [
@@ -151,13 +156,17 @@ keywords = {
     "IN": TokenType.IN,
     "STEP": TokenType.STEP,
     "ENDFOR": TokenType.KEYWORD,
+    
+    "RECORD": TokenType.RECORD,
+    "ENDRECORD": TokenType.KEYWORD,
 }
 
 types = {
     "Real": TokenType.TYPE,
-    "Int": TokenType.TYPE,
+    "Integer": TokenType.TYPE,
     "Bool": TokenType.TYPE,
     "String": TokenType.TYPE,
+    "Record": TokenType.TYPE,
 }
 
 
@@ -193,10 +202,11 @@ class Lexer:
         is_string = False
         is_number = False
         prev_char = ""
+        beginning_quote = ""
         single_line_comment = False
         ID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
         tok = list(TokenType)
-        key_tokens = tok[tok.index(TokenType.ID):tok.index(TokenType.STEP)+1]
+        key_tokens = tok[tok.index(TokenType.ID):tok.index(TokenType.RECORD)+1]
         
 
         for i,char in enumerate(string):
@@ -218,11 +228,17 @@ class Lexer:
                     is_number = True
                 
                 # string processing
-                if char == "'" and prev_char != escape_character:
-                    self.lexme = self.lexme[:-1]
-                    is_string = not is_string
-                    if not is_string:
-                        self.addToken(self.lexme, TokenType.STRING)
+                if char in QUOTE_CHARS and prev_char != escape_character:
+                    if is_string and char == beginning_quote:
+                        self.lexme = self.lexme[:-1]
+                        is_string = False
+                        if not is_string:
+                            self.addToken(self.lexme, TokenType.STRING)
+                    else:
+                        self.lexme = self.lexme[:-1]
+                        is_string = True
+                        beginning_quote = char
+                    #print(char, beginning_quote, is_string)
 
                 if (string[i+1] == white_space or string[i+1] in KEYWORDS.keys() or self.lexme in KEYWORDS.keys()) and not is_string: # if next char == ' '
                     if self.lexme != "":
@@ -234,6 +250,8 @@ class Lexer:
                                         TokenType.FLOAT,
                                     )
                                 else:
+                                    if string[i+1] in (".",):
+                                        continue
                                     self.addToken(
                                         int(self.lexme),
                                         TokenType.INT,

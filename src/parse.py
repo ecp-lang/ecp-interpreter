@@ -3,60 +3,88 @@ import random
 import math
 
 """
-grammar
+ECP full grammar
 
 program               :  statement_list EOF
+
+compound              :  statement_list
 
 statement_list        :  (statement)*
 
 statement             :  assignment_statement
+                      |  magic_function
+                      |  subroutine_call
+                      |  subroutine
+                      |  if_statement
+                      |  while_loop
+                      |  repeat_until_loop
+                      |  for_loop
 
 assignment_statement  :  variable ASSIGN expr
 
-magic_function        :  MAGIC expr (COMMA expr)*
+magic_function        :  MAGIC ( expr ( COMMA expr )* )?
 
-if_statement          : IF condition THEN statement_list ( else_if_statement | else_statement )? ENDIF
+subroutine_call       :  variable LPAREN ( param ( COMMA param )* )? RPAREN
+
+param                 :  expr
+
+subroutine            :  SUBROUTINE ID LPAREN ( param_definition ( COMMA parem_definition )* )? RPAREN compound ENDSUBROUTINE
+param_definition      :  variable
+
+
+if_statement          :  IF condition THEN compound ( else_if_statement | else_statement )? ENDIF
 else_if_statement     :  ELSE if_statement
-else_statement        :  ELSE statement_list
+else_statement        :  ELSE compound
 
-for_loop              : FOR assignment_statement TO expr (STEP expr)? statement_list ENDFOR
-                      | FOR variable IN expr statement_list ENDFOR
+for_loop              :  FOR assignment_statement TO expr (STEP expr)? compound ENDFOR
+                      |  FOR variable IN expr compound ENDFOR
 
-expr                  : bool_relation
+while_loop            :  WHILE expr compound ENDWHILE
 
-bool_relation         : relation (bool_op relation)*
-bool_op               : AND
-                      | OR
+repeat_until_loop     :  REPEAT compound UNTIL expr
 
-relation              : arithmetic_expr (rel_op arithmetic_expr)*
-rel_op                : LESS_THAN
-                      | GREATER_THAN
-                      | EQUAL
-                      | LESS_EQUAL
-                      | GREATER_EQUAL
-                      | NOT_EQUAL
-arithmetic_expr       : term ((PLUS | MINUS) term)*
-term                  : factor ((MUL | INT_DIV | DIV) factor)
+record_definition     :  RECORD ID (variable)* ENDRECORD
+
+expr                  :  term5
+
+term5                 :  term4  ( ( AND | OR            ) term4  )*
+term4                 :  term3  ( ( EQALITY_OP          ) term3  )*
+term3                 :  term2  ( ( ADD | SUB           ) term2  )*
+term2                 :  term   ( ( MUL | DIV | INT_DIV ) term   )*
+term                  :  factor ( ( POW | MOD           ) factor )*
+
+EQUALITY_OP           :  ( LT | LE | EQ | NE | GT | GE )
+
+
+factor                :  PLUS factor
+                      |  MINUS factor
+                      |  INTEGER_CONST
+                      |  REAL_CONST
+                      |  LPAREN expr RPAREN
+                      |  TRUE
+                      |  FALSE
+                      |  variable
+                      |  function_call
+                      |  array
+
+array                 :  LS_PAREN (expr (COMMA expr)*)? RS_PAREN
+
+variable              :  ID (targeter)* (COLON TYPE)?
+
+targeter              :  LS_PAREN expr RS_PAREN
 
 
 
-factor                : PLUS factor
-                      | MINUS factor
-                      | INTEGER_CONST
-                      | REAL_CONST
-                      | LPAREN expr RPAREN
-                      | TRUE
-                      | FALSE
-                      | variable
-                      | function_call
-                      | array
-
-array                 : LS_PAREN (expr)? (COMMA expr)* RS_PAREN
-
-variable              :  ID
-
-assign                :  = | ←
-
+NOTE:
+The priority for math operations is as follows:
+    - HIGHEST PRECEDENCE -
+    factor :  (this can be seen as the final stage, where brackets are prcoessed etc)
+    term   :  pow, mod
+    term2  :  mul, div, int_div
+    term3  :  add, sub
+    term4  :  lt, le, eq, ne, gt, ge
+    term5  :  and, or
+    - LOWEST PRECEDENCE -
 """
 
 
@@ -64,6 +92,8 @@ assign                :  = | ←
 class AST(object):
     pass
 
+class TraversableItem(object):
+    pass
 
 class BinOp(AST):
     def __init__(self, left, op, right):
@@ -96,6 +126,16 @@ class Array(AST):
     
     def __getitem__(self, key):
         return self.value[key]
+
+class Record(AST):
+    def __init__(self, token):
+        self.token = token
+        self.parameters = []
+
+class RecordObject(TraversableItem):
+    def __init__(self, base: Record):
+        self.base = base
+        self.properties = {}
 
 class UnaryOp(AST):
     def __init__(self, op, expr):
@@ -287,6 +327,8 @@ class Parser:
             node = self.repeat_until_statement()
         elif self.current_token.type == TokenType.FOR:
             node = self.for_loop()
+        elif self.current_token.type == TokenType.RECORD:
+            return self.record_definition()
         else:
             node = self.empty()
         return node
@@ -305,11 +347,20 @@ class Parser:
     def variable(self):
         node = Var(self.current_token)
         self.eat(TokenType.ID)
-        while self.current_token.type == TokenType.LS_PAREN:
-            self.eat(TokenType.LS_PAREN)
-            node.array_indexes.append(self.expr())
-            self.eat(TokenType.RS_PAREN)
+        while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
+            if self.current_token.type == TokenType.LS_PAREN:
+                self.eat(TokenType.LS_PAREN)
+                node.array_indexes.append(self.expr())
+                self.eat(TokenType.RS_PAREN)
+            elif self.current_token.type == TokenType.DOT:
+                self.eat(TokenType.DOT)
+                node.array_indexes.append(self.id())
         return node
+    
+    def id(self):
+        token = self.current_token
+        self.eat(TokenType.ID)
+        return String(token)
     
     def empty(self):
         return NoOp()
@@ -371,20 +422,7 @@ class Parser:
                 node = self.subroutine_call(node)
             return node
 
-    
     def term(self):
-        """term : factor (( MUL | DIV ) factor)* """
-        node = self.actual_term()
-
-        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV):
-            token = self.current_token
-            self.eat(token.type)
-        
-            node = BinOp(left=node, op=token, right=self.actual_term())
-        
-        return node
-    
-    def actual_term(self):
         node = self.factor()
 
         while self.current_token.type in (TokenType.POW, TokenType.MOD):
@@ -395,13 +433,22 @@ class Parser:
         
         return node
     
-    def expr(self):
-        return self.bool_relation()
-
-    def arithmetic_expr(self):
-        """expr   :  term (( PLUS | MINUS ) term)*
-        """
+    def term2(self):
+        
         node = self.term()
+
+        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV):
+            token = self.current_token
+            self.eat(token.type)
+        
+            node = BinOp(left=node, op=token, right=self.term())
+        
+        return node
+    
+
+    def term3(self):
+        
+        node = self.term2()
 
         while self.current_token.type in (
             TokenType.ADD, TokenType.SUB, 
@@ -410,36 +457,13 @@ class Parser:
             token = self.current_token
             self.eat(token.type)
             
-            node = BinOp(left=node, op=token, right=self.term())
+            node = BinOp(left=node, op=token, right=self.term2())
         
         return node
     
-    def bool_relation(self):
-        """
-        bool_relation : relation (bool_op relation)*
-        bool_op       : AND
-                      | OR
-        """
-        node = self.relation()
-        while self.current_token.type in (
-            TokenType.AND, TokenType.OR,
-        ):
-            token = self.current_token
-            self.eat(token.type)
-            node = BinOp(left=node, op=token, right=self.relation())
-        return node
+    def term4(self):
         
-    def relation(self):
-        """
-        relation : arithmetic_expr (rel_op arithmetic_expr)*
-        rel_op   : LESS_THAN
-                 | GREATER_THAN
-                 | EQUAL
-                 | LESS_EQUAL
-                 | GREATER_EQUAL
-                 | NOT_EQUAL
-        """
-        node = self.arithmetic_expr()
+        node = self.term3()
         while self.current_token.type in (
             TokenType.LT,
             TokenType.GT,
@@ -450,8 +474,23 @@ class Parser:
         ):
             token = self.current_token
             self.eat(token.type)
-            node = BinOp(left=node, op=token, right=self.arithmetic_expr())
+            node = BinOp(left=node, op=token, right=self.term3())
         return node
+    
+    def term5(self):
+        
+        node = self.term4()
+        while self.current_token.type in (
+            TokenType.AND, TokenType.OR,
+        ):
+            token = self.current_token
+            self.eat(token.type)
+            node = BinOp(left=node, op=token, right=self.term4())
+        return node
+        
+    
+    def expr(self):
+        return self.term5()
 
     def magic_function(self):
         token = self.current_token
@@ -639,6 +678,23 @@ class Parser:
         self.eat(TokenType.KEYWORD)
         return f
     
+    def record_definition(self):
+        """record_definition  :  RECORD ID (variable)* ENDRECORD"""
+        self.eat(TokenType.RECORD)
+        token = self.id()
+        node = Record(token)
+        self.eat_gap()
+        while self.current_token.type != TokenType.KEYWORD:
+            self.eat_gap()
+            node.parameters.append(self.variable().value)
+            if self.current_token.type == TokenType.COLON:
+                self.eat(TokenType.COLON)
+                self.eat(TokenType.TYPE)
+            self.eat_gap()
+        
+        self.eat_gap()
+        self.eat(TokenType.KEYWORD)
+        return node
 
     def parse(self):
         node = self.program()
@@ -738,7 +794,7 @@ class BuiltinFunctionContainer:
         num = self.interpreter.visit(num.value)
         return math.sqrt(num)
     
-    def Int(self, other: Param):
+    def Integer(self, other: Param):
         return int(self.interpreter.visit(other.value))
     
     def Real(self, other: Param):
@@ -750,7 +806,7 @@ class BuiltinFunctionContainer:
 
 
 class Interpreter(NodeVisitor):
-    def __init__(self, parser):
+    def __init__(self, parser: Parser):
         self.parser = parser
         self.current_scope = None
         self.RETURN = False
@@ -758,7 +814,7 @@ class Interpreter(NodeVisitor):
         self.BREAK = False
         self.builtin_subroutines_container = BuiltinFunctionContainer(self)
     
-    def visit_BinOp(self, node):
+    def visit_BinOp(self, node: BinOp):
         if node.op.type == TokenType.ADD:
             return self.visit(node.left) + self.visit(node.right)
         elif node.op.type == TokenType.SUB:
@@ -792,7 +848,7 @@ class Interpreter(NodeVisitor):
             return self.visit(node.left) or self.visit(node.right)
         
     
-    def visit_UnaryOp(self, node):
+    def visit_UnaryOp(self, node: UnaryOp):
         op = node.op.type
         if op == TokenType.ADD:
             return +self.visit(node.expr)
@@ -801,39 +857,47 @@ class Interpreter(NodeVisitor):
         elif op == TokenType.NOT:
             return not self.visit(node.expr)
 
-    def visit_Num(self, node):
+    def visit_Num(self, node: Num):
         return node.value
     
-    def visit_String(self, node):
+    def visit_String(self, node: String):
         return node.value
     
-    def visit_Bool(self, node):
+    def visit_Bool(self, node: Bool):
         return node.value
     
-    def visit_Array(self, node):
+    def visit_Array(self, node: Array):
         return node.value
     
-    def visit_Compound(self, node):
+    def visit_Compound(self, node: Compound):
         for child in node.children:
-            if self.RETURN or self.BREAK | self.CONTINUE:
+            if self.RETURN or self.BREAK or self.CONTINUE:
                 break
             self.visit(child)
 
-    def visit_NoOp(self, node):
+    def visit_NoOp(self, node: NoOp):
         pass
 
     def set_element(self, l, index, value):
         #print(f"list: {l}, indexes: {index}, value: {value}")
+        target = self.visit(index[0])
         if(len(index) == 1):
-            l[self.visit(index[0])] = value
+            if isinstance(target, int):
+                l[target] = value
+            else:
+                l.properties[target] = value
             #print(f"set {l}[{self.visit(index[0])}] to {value}")
         else:
-            self.set_element(l[self.visit(index[0])],index[1:],value)
+            if isinstance(target, int):
+                self.set_element(l[target], index[1:], value)
+            else:
+                self.set_element(l.properties[target], index[1:], value)
     
     def visit_Assign(self, node):
         var_name = node.left.value
         if var_name in self.current_scope._variables:
             val = self.visit_Var(node.left, traverse_lists=False)
+            #print([self.visit(n) for n in node.left.array_indexes])
             if isinstance(val, (list, str)) and len(node.left.array_indexes) > 0:
                 self.set_element(
                     self.current_scope._variables[node.left.value], 
@@ -847,9 +911,12 @@ class Interpreter(NodeVisitor):
         var_name = node.value
         val = self.current_scope.get(node)
         #print(f"val type: {type(val)}")
-        if isinstance(val, (list, str)) and traverse_lists:
+        if isinstance(val, (list, str, TraversableItem)) and traverse_lists:
             for i in node.array_indexes:
-                val = val[self.visit(i)]
+                if isinstance(i, int):
+                    val = val[self.visit(i)]
+                else:
+                    val = val.properties[self.visit(i)]
                 if isinstance(val, AST):
                     val = self.visit(val)
                 #print(f"val type: {type(val)}")
@@ -880,28 +947,43 @@ class Interpreter(NodeVisitor):
         #for c in node.children:
         #    print("  ", c)
     
-    def visit_SubroutineCall(self, node):
+    def visit_Record(self, node):
+        self.current_scope.insert(node.token, node)
+
+    def create_RecordObject(self, node: SubroutineCall, base: Record):
+        record_object = RecordObject(base=base)
+
+        for name, param in zip(base.parameters, node.parameters):
+            value = self.visit(param.value)
+            record_object.properties[name] = value
+
+        return record_object
+
+    def visit_SubroutineCall(self, node: SubroutineCall):
         #print(f"called {node.subroutine_token.value}({', '.join([str(n.value.value) for n in node.parameters])})")
         function = self.current_scope.get(node.subroutine_token)
-        
-        function_scope = VariableScope(node.subroutine_token.value, self.current_scope)
+        if isinstance(function, Record):
+            return self.create_RecordObject(node, function)
+        else:
+            
+            function_scope = VariableScope(node.subroutine_token.value, self.current_scope)
 
-        #print(function)
-        if len(function.parameters) != len(node.parameters):
-            raise InterpreterError("mismatched function parameters")
-        for c, p in enumerate(function.parameters):
-            function_scope.insert(p.variable, self.visit(node.parameters[c].value))
-        
-        self.current_scope = function_scope
-        # execute function
-        self.RETURN_VALUE = None
-        self.RETURN = False
-        self.visit(function.compound)
-        self.RETURN = False
-        result = self.RETURN_VALUE
-        self.RETURN_VALUE = None
-        self.current_scope = self.current_scope.enclosing_scope
-        return result
+            #print(function)
+            if len(function.parameters) != len(node.parameters):
+                raise InterpreterError("mismatched function parameters")
+            for c, p in enumerate(function.parameters):
+                function_scope.insert(p.variable, self.visit(node.parameters[c].value))
+
+            self.current_scope = function_scope
+            # execute function
+            self.RETURN_VALUE = None
+            self.RETURN = False
+            self.visit(function.compound)
+            self.RETURN = False
+            result = self.RETURN_VALUE
+            self.RETURN_VALUE = None
+            self.current_scope = self.current_scope.enclosing_scope
+            return result
     
     def visit_BuiltinSubroutineCall(self, node):
         func = getattr(self.builtin_subroutines_container, node.subroutine_token.value, None)
