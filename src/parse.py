@@ -1,6 +1,7 @@
 from lexer import *
 import random
 import math
+from pprint import pprint
 
 """
 ECP full grammar
@@ -102,31 +103,6 @@ class BinOp(AST):
         self.right = right
 
 
-class Num(AST):
-    def __init__(self, token):
-        self.token = token
-        self.value = token.value
-
-class String(AST):
-    def __init__(self, token):
-        self.token = token
-        self.value = token.value
-
-class Bool(AST):
-    def __init__(self, token):
-        self.token = token
-        self.value = token.value
-
-class Array(AST):
-    def __init__(self, value):
-        self.value = value
-    
-    def __setitem__(self, key, value):
-        self.value[key] = value
-    
-    def __getitem__(self, key):
-        return self.value[key]
-
 class Record(AST):
     def __init__(self, token):
         self.token = token
@@ -191,6 +167,66 @@ class SubroutineCall(AST):
 class NoOp(AST):
     pass
 
+
+class Object(AST):
+    def __init__(self, value):
+        self.value = value
+        self.properties = {}
+    
+    def __add__(self, other):
+        return Object.create(self.value + other.value)
+    
+    def __sub__(self, other):
+        return Object.create(self.value - other.value)
+    
+    def __mul__(self, other):
+        return Object.create(self.value * other.value)
+
+    def __div__(self, other):
+        return Object.create(self.value / other.value)
+
+    @staticmethod
+    def create(value):
+        return Object.associations[type(value).__name__](value)    
+
+class IntObject(Object):
+    def __init__(self, value):
+        super().__init__(int(value))
+
+class FloatObject(Object):
+    pass
+
+class BoolObject(Object):
+    pass
+
+class StringObject(Object):
+    pass
+
+class ArrayObject(Object):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.properties = {
+            "append": self.append
+        }
+    
+    def __getitem__(self, index):
+        return self.value[index]
+    
+    def __setitem(self, index, value):
+        self.value[index] = value
+
+    def append(self, _object):
+        self.value.append(_object)
+
+Object.associations = {
+    "int":   IntObject,
+    "float": FloatObject,
+    "bool":  BoolObject,
+    "str":   StringObject,
+    "list":  ArrayObject,
+}
+
+        
 
 class ParseError(Exception):
     pass
@@ -360,7 +396,7 @@ class Parser:
     def id(self):
         token = self.current_token
         self.eat(TokenType.ID)
-        return String(token)
+        return StringObject(token.value)
     
     def empty(self):
         return NoOp()
@@ -390,15 +426,10 @@ class Parser:
             self.eat(TokenType.NOT)
             node = UnaryOp(token, self.factor())
             return node
-        elif token.type == TokenType.INT:
-            self.eat(TokenType.INT)
-            return Num(token)
-        elif token.type == TokenType.FLOAT:
-            self.eat(TokenType.FLOAT)
-            return Num(token)
-        elif token.type == TokenType.BOOLEAN:
-            self.eat(TokenType.BOOLEAN)
-            return Bool(token)
+        elif token.type in (TokenType.INT, TokenType.FLOAT, TokenType.BOOLEAN, TokenType.STRING):
+            self.eat(token.type)
+            return Object.create(token.value)
+        
         elif token.type == TokenType.LPAREN:
             self.eat(TokenType.LPAREN)
             node = self.expr()
@@ -409,9 +440,7 @@ class Parser:
             node = self.array()
             self.eat(TokenType.RS_PAREN)
             return node
-        elif token.type == TokenType.STRING:
-            self.eat(TokenType.STRING)
-            return String(token)
+        
         elif token.type == TokenType.MAGIC:
             return self.magic_function()
         elif self.current_token.type in (TokenType.BUILTIN_FUNCTION, TokenType.TYPE):
@@ -644,7 +673,7 @@ class Parser:
                 self.eat_gap()
         self.eat_gap()
         #print(values)
-        return Array(values)
+        return ArrayObject(values)
     
     def for_loop(self):
         """for_loop   : FOR ID ASSIGN expr TO expr (STEP expr)? statement_list ENDFOR
@@ -739,69 +768,69 @@ class BuiltinFunctionContainer:
         self.interpreter = interpreter
     
     def USERINPUT(self, *args):
-        return input(self.interpreter.visit(args[0].value) if len(args) > 0 else "")
+        return Object.create(input(self.interpreter.visit(args[0].value).value if len(args) > 0 else ""))
     
     def LEN(self, *args):
-        return len(self.interpreter.visit(args[0].value))
+        return Object.create(len(args[0].value))
     
-    def POSITION(self, s: Param, c: Param, *args):
-        string = self.interpreter.visit(s.value)
-        to_match = self.interpreter.visit(c.value)
+    def POSITION(self, s: Object, c: Object, *args):
+        string = self.interpreter.visit(s.value).value
+        to_match = self.interpreter.visit(c.value).value
 
         try:
-            return string.index(to_match)
+            return Object.create(string.index(to_match))
         except ValueError:
             return -1
     
-    def SUBSTRING(self, start: Param, end: Param, string: Param, *args):
-        start = self.interpreter.visit(start.value)
-        end = self.interpreter.visit(end.value)
-        string = self.interpreter.visit(string.value)
+    def SUBSTRING(self, start: Object, end: Object, string: Object, *args):
+        start = start.value
+        end = end.value
+        string = string.value
 
-        return string[start:end+1]
+        return Object.create(string[start:end+1])
     
-    def STRING_TO_INT(self, string: Param):
-        string = self.interpreter.visit(string.value)
-        return int(string)
+    def STRING_TO_INT(self, string: Object):
+        string = string.value
+        return Object.create(int(string))
     
-    def STRING_TO_REAL(self, string: Param):
-        string = self.interpreter.visit(string.value)
-        return float(string)
+    def STRING_TO_REAL(self, string: Object):
+        string = string.value
+        return Object.create(float(string))
     
-    def INT_TO_STRING(self, integer: Param):
-        integer = self.interpreter.visit(integer.value)
-        return str(integer)
+    def INT_TO_STRING(self, integer: Object):
+        integer = integer.value
+        return Object.create(str(integer))
     
-    def REAL_TO_STRING(self, real: Param):
-        real = self.interpreter.visit(real.value)
-        return str(real)
+    def REAL_TO_STRING(self, real: Object):
+        real = real.value
+        return Object.create(str(real))
     
-    def CHAR_TO_CODE(self, char: Param):
-        char = self.interpreter.visit(char.value)
-        return ord(char)
+    def CHAR_TO_CODE(self, char: Object):
+        char = char.value
+        return Object.create(ord(char))
     
-    def CODE_TO_CHAR(self, code: Param):
-        code = self.interpreter.visit(code.value)
-        return chr(code)
+    def CODE_TO_CHAR(self, code: Object):
+        code = code.value
+        return Object.create(chr(code))
     
-    def RANDOM_INT(self, a: Param, b: Param):
-        a = self.interpreter.visit(a.value)
-        b = self.interpreter.visit(b.value)
+    def RANDOM_INT(self, a: Object, b: Object):
+        a = a.value
+        b = b.value
 
-        return random.randint(a, b)
+        return Object.create(random.randint(a, b))
     
-    def SQRT(self, num: Param):
-        num = self.interpreter.visit(num.value)
-        return math.sqrt(num)
+    def SQRT(self, num: Object):
+        num = num.value
+        return Object.create(math.sqrt(num))
     
-    def Integer(self, other: Param):
-        return int(self.interpreter.visit(other.value))
+    def Integer(self, other: Object):
+        return Object.create(int(other.value))
     
-    def Real(self, other: Param):
-        return float(self.interpreter.visit(other.value))
+    def Real(self, other: Object):
+        return Object.create(float(other.value))
     
-    def String(self, other: Param):
-        return str(self.interpreter.visit(other.value))
+    def String(self, other: Object):
+        return Object.create(str(other.value))
 
 
 
@@ -816,58 +845,68 @@ class Interpreter(NodeVisitor):
     
     def visit_BinOp(self, node: BinOp):
         if node.op.type == TokenType.ADD:
-            return self.visit(node.left) + self.visit(node.right)
+            result = self.visit(node.left).value + self.visit(node.right).value
         elif node.op.type == TokenType.SUB:
-            return self.visit(node.left) - self.visit(node.right)
+            result = self.visit(node.left).value - self.visit(node.right).value
         elif node.op.type == TokenType.MUL:
-            return self.visit(node.left) * self.visit(node.right)
+            result = self.visit(node.left).value * self.visit(node.right).value
         elif node.op.type == TokenType.DIV:
-            return self.visit(node.left) / self.visit(node.right)
+            result = self.visit(node.left).value / self.visit(node.right).value
         elif node.op.type == TokenType.INT_DIV:
-            return self.visit(node.left) // self.visit(node.right)
+            result = self.visit(node.left).value // self.visit(node.right).value
         elif node.op.type == TokenType.MOD:
-            return self.visit(node.left) % self.visit(node.right)
+            result = self.visit(node.left).value % self.visit(node.right).value
         elif node.op.type == TokenType.POW:
-            return self.visit(node.left) ** self.visit(node.right)
+            result = self.visit(node.left).value ** self.visit(node.right).value
         
         elif node.op.type == TokenType.GT:
-            return self.visit(node.left) > self.visit(node.right)
+            result = self.visit(node.left).value > self.visit(node.right).value
         elif node.op.type == TokenType.GE:
-            return self.visit(node.left) >= self.visit(node.right)
+            result = self.visit(node.left).value >= self.visit(node.right).value
         elif node.op.type == TokenType.EQ:
-            return self.visit(node.left) == self.visit(node.right)
+            result = self.visit(node.left).value == self.visit(node.right).value
         elif node.op.type == TokenType.NE:
-            return self.visit(node.left) != self.visit(node.right)
+            result = self.visit(node.left).value != self.visit(node.right).value
         elif node.op.type == TokenType.LT:
-            return self.visit(node.left) < self.visit(node.right)
+            result = self.visit(node.left).value < self.visit(node.right).value
         elif node.op.type == TokenType.LE:
-            return self.visit(node.left) <= self.visit(node.right)
+            result = self.visit(node.left).value <= self.visit(node.right).value
         elif node.op.type == TokenType.AND:
-            return self.visit(node.left) and self.visit(node.right)
+            result = self.visit(node.left).value and self.visit(node.right).value
         elif node.op.type == TokenType.OR:
-            return self.visit(node.left) or self.visit(node.right)
+            result = self.visit(node.left).value or self.visit(node.right).value
+        
+        return Object.create(result)
         
     
     def visit_UnaryOp(self, node: UnaryOp):
         op = node.op.type
         if op == TokenType.ADD:
-            return +self.visit(node.expr)
+            result = +self.visit(node.expr).value
         elif op == TokenType.SUB:
-            return -self.visit(node.expr)
+            result = -self.visit(node.expr).value
         elif op == TokenType.NOT:
-            return not self.visit(node.expr)
+            result = not self.visit(node.expr).value
+        
+        return Object.create(result)
 
-    def visit_Num(self, node: Num):
-        return node.value
+    def visit_IntObject(self, node: Object):
+        return node
     
-    def visit_String(self, node: String):
-        return node.value
+    def visit_FloatObject(self, node: Object):
+        return node
     
-    def visit_Bool(self, node: Bool):
-        return node.value
+    def visit_BoolObject(self, node: Object):
+        return node
+
+    def visit_StringObject(self, node: Object):
+        return node
+
+    def visit_ArrayObject(self, node: Object):
+        return node
     
-    def visit_Array(self, node: Array):
-        return node.value
+    def visit_method(self, method):
+        return method
     
     def visit_Compound(self, node: Compound):
         for child in node.children:
@@ -900,25 +939,28 @@ class Interpreter(NodeVisitor):
             #print([self.visit(n) for n in node.left.array_indexes])
             if isinstance(val, (list, str)) and len(node.left.array_indexes) > 0:
                 self.set_element(
-                    self.current_scope._variables[node.left.value], 
+                    var_name, 
                     node.left.array_indexes, 
                     self.visit(node.right)
                 )
                 return
         self.current_scope.insert(node.left, self.visit(node.right))
+
+        #print("MEM:")
+        #pprint(self.current_scope._variables)
     
-    def visit_Var(self, node, traverse_lists = True):
+    def visit_Var(self, node: Var, traverse_lists = True):
         var_name = node.value
         val = self.current_scope.get(node)
         #print(f"val type: {type(val)}")
-        if isinstance(val, (list, str, TraversableItem)) and traverse_lists:
+        if traverse_lists:
             for i in node.array_indexes:
-                if isinstance(i, int):
-                    val = val[self.visit(i)]
+                target = self.visit(i).value
+                if isinstance(target, int):
+                    val = val[target]
                 else:
-                    val = val.properties[self.visit(i)]
-                if isinstance(val, AST):
-                    val = self.visit(val)
+                    val = val.properties[target]
+                val = self.visit(val)
                 #print(f"val type: {type(val)}")
 
         
@@ -930,7 +972,7 @@ class Interpreter(NodeVisitor):
     
     def visit_Magic(self, node):
         if node.token.value == "OUTPUT":
-            values = [self.visit(n) for n in node.parameters]
+            values = [self.visit(n).value for n in node.parameters]
             print(*values)
         elif node.token.value == "RETURN":
             values = [self.visit(n) for n in node.parameters]
@@ -960,11 +1002,13 @@ class Interpreter(NodeVisitor):
         return record_object
 
     def visit_SubroutineCall(self, node: SubroutineCall):
-        #print(f"called {node.subroutine_token.value}({', '.join([str(n.value.value) for n in node.parameters])})")
-        function = self.current_scope.get(node.subroutine_token)
+        #print(f"called {self.visit(node.subroutine_token)}({', '.join([str(n.value.value) for n in node.parameters])})")
+        function = self.visit(node.subroutine_token)
+        
         if isinstance(function, Record):
             return self.create_RecordObject(node, function)
-        else:
+        
+        elif isinstance(function, Subroutine):
             
             function_scope = VariableScope(node.subroutine_token.value, self.current_scope)
 
@@ -972,6 +1016,7 @@ class Interpreter(NodeVisitor):
             if len(function.parameters) != len(node.parameters):
                 raise InterpreterError("mismatched function parameters")
             for c, p in enumerate(function.parameters):
+                #print(self.visit(node.parameters[c].value))
                 function_scope.insert(p.variable, self.visit(node.parameters[c].value))
 
             self.current_scope = function_scope
@@ -984,21 +1029,25 @@ class Interpreter(NodeVisitor):
             self.RETURN_VALUE = None
             self.current_scope = self.current_scope.enclosing_scope
             return result
+        
+        else:
+            parameters = [self.visit(p.value) for p in node.parameters]
+            return function(*parameters)
     
     def visit_BuiltinSubroutineCall(self, node):
         func = getattr(self.builtin_subroutines_container, node.subroutine_token.value, None)
         if func:
-            return func(*node.parameters)
+            return func(*[self.visit(p.value) for p in node.parameters])
         
-    def visit_IfStatement(self, node):
-        if self.visit(node.condition):
+    def visit_IfStatement(self, node: IfStatement):
+        if self.visit(node.condition).value:
             self.visit(node.consequence)
         else:
             for statement in node.alternatives:
                 self.visit(statement)
     
     def visit_WhileStatement(self, node):
-        while self.visit(node.condition):
+        while self.visit(node.condition).value:
             self.visit(node.consequence)
             if self.CONTINUE:
                 self.CONTINUE = False
@@ -1018,14 +1067,14 @@ class Interpreter(NodeVisitor):
                 self.BREAK = False
                 break
             
-            if self.visit(node.condition):
+            if self.visit(node.condition).value:
                 break
     
     def visit_ForLoop(self, node: ForLoop):
         if node.to_step:
-            step = self.visit(node.step) if node.step else 1
-            for i in range(self.visit(node.start), self.visit(node.end)+1, step):
-                self.current_scope.insert(node.variable, i)
+            step = self.visit(node.step).value if node.step else 1
+            for i in range(self.visit(node.start).value, self.visit(node.end).value+1, step):
+                self.current_scope.insert(node.variable, Object.create(i))
                 self.visit(node.loop)
                 if self.CONTINUE:
                     self.CONTINUE = False
@@ -1034,10 +1083,10 @@ class Interpreter(NodeVisitor):
                     self.BREAK = False
                     break
         else:
-            iterator = self.visit(node.iterator)
+            iterator = self.visit(node.iterator).value
             for i in iterator:
-                current = self.visit(i) if isinstance(i, AST) else i
-                self.current_scope.insert(node.variable, current)
+                current = self.visit(i).value
+                self.current_scope.insert(node.variable, Object.create(current))
                 self.visit(node.loop)
                 if self.CONTINUE:
                     self.CONTINUE = False

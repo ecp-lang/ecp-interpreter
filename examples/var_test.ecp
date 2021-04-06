@@ -1,28 +1,11 @@
-#a := [0,[[]]]
-#a[1][0].e := 1
+a := 1
+b := []
 
-RECORD Car
-    make : String
-    model : String
-    reg : String
-    price : Real
-    noOfDoors : Integer
-ENDRECORD
+OUTPUT b
+b.append(a)
+OUTPUT b
 
-myCar := Car('Ford', 'Focus', 1399.99, 5)
-OUTPUT myCar.make
+OUTPUT b[0] = a
+OUTPUT 'LEN(b)', LEN(b)
 
-RECORD b
-    num : Integer
-ENDRECORD
-
-RECORD a
-    b: Record
-ENDRECORD
-
-test := a(b(1))
-
-OUTPUT test.b.num
-
-t := []
-OUTPUT t.a
+OUTPUT SUBSTRING(0, 2, "aaa")
