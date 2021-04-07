@@ -132,8 +132,6 @@ keywords = {
     "RETURN": TokenType.MAGIC,
     "CONTINUE": TokenType.MAGIC,
     "BREAK": TokenType.MAGIC,
-    "WHILE": TokenType.KEYWORD, 
-    "ENDWHILE": TokenType.KEYWORD,
     "OUTPUT": TokenType.MAGIC,
     "False": TokenType.BOOLEAN,
     "True": TokenType.BOOLEAN,
@@ -196,7 +194,7 @@ class Lexer:
         if not string.endswith("\n"):
             string += "\n"
         self.tokens = []
-        white_space = " "
+        white_space = " \t"
         escape_character = "\\"
         self.lexme = ""
         is_string = False
@@ -215,7 +213,7 @@ class Lexer:
                 self.lineno += 1
                 self.column = 0
                 single_line_comment = False
-            if (char != white_space or is_string) and not (char == escape_character and prev_char != escape_character):
+            if ((char not in white_space) or is_string) and not (char == escape_character and prev_char != escape_character):
                 self.lexme += char # adding a char each time
             if char == "#" and prev_char != escape_character:
                 single_line_comment = True
@@ -240,7 +238,7 @@ class Lexer:
                         beginning_quote = char
                     #print(char, beginning_quote, is_string)
 
-                if (string[i+1] == white_space or string[i+1] in KEYWORDS.keys() or self.lexme in KEYWORDS.keys()) and not is_string: # if next char == ' '
+                if ((string[i+1] in white_space) or string[i+1] in KEYWORDS.keys() or self.lexme in KEYWORDS.keys()) and not is_string: # if next char == ' '
                     if self.lexme != "":
                         if is_number:
                             try:
