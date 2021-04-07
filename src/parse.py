@@ -668,7 +668,7 @@ class Parser:
         if self.current_token.type == TokenType.ELSE and self.next_token.type == TokenType.IF:
             alternatives.append(self.elseif_statement())
         elif self.current_token.type == TokenType.ELSE:
-            alternatives.extend(self.else_statement())
+            alternatives.append(self.else_statement())
         
         node = IfStatement(condition=condition)
         node.consequence = consequence
