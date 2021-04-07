@@ -121,10 +121,10 @@ QUOTE_CHARS = ("'", "\"")
 #symbols = [] # single-char keywords
 other_symbols = {} # multi-char keywords
 builtin_functions = [
-    "USERINPUT", "LEN", "POSITION", "SUBSTRING", 
-    "STRING_TO_INT", "STRING_TO_REAL", "INT_TO_STRING", 
-    "REAL_TO_STRING", "CHAR_TO_CODE", "CODE_TO_CHAR", "RANDOM_INT",
-    "SQRT",
+    #"USERINPUT", "LEN", "POSITION", "SUBSTRING", 
+    #"STRING_TO_INT", "STRING_TO_REAL", "INT_TO_STRING", 
+    #"REAL_TO_STRING", "CHAR_TO_CODE", "CODE_TO_CHAR", "RANDOM_INT",
+    #"SQRT",
 ]
 keywords = {
     "SUBROUTINE": TokenType.KEYWORD, 
@@ -132,8 +132,6 @@ keywords = {
     "RETURN": TokenType.MAGIC,
     "CONTINUE": TokenType.MAGIC,
     "BREAK": TokenType.MAGIC,
-    "USERINPUT": TokenType.BUILTIN_FUNCTION,
-    "LEN": TokenType.BUILTIN_FUNCTION,
     "WHILE": TokenType.KEYWORD, 
     "ENDWHILE": TokenType.KEYWORD,
     "OUTPUT": TokenType.MAGIC,
@@ -162,11 +160,13 @@ keywords = {
 }
 
 types = {
-    "Real": TokenType.TYPE,
-    "Integer": TokenType.TYPE,
-    "Bool": TokenType.TYPE,
-    "String": TokenType.TYPE,
-    "Record": TokenType.TYPE,
+    #"Real": TokenType.TYPE,
+    #"Integer": TokenType.TYPE,
+    #"Int": TokenType.TYPE,
+    #"Bool": TokenType.TYPE,
+    #"String": TokenType.TYPE,
+    #"Array": TokenType.TYPE,
+    #"Record": TokenType.TYPE,
 }
 
 

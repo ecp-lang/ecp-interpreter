@@ -9,3 +9,11 @@ OUTPUT b[0] = a
 OUTPUT 'LEN(b)', LEN(b)
 
 OUTPUT SUBSTRING(0, 2, "aaa")
+
+OUTPUT POSITION('computer science', 'm')
+
+OUTPUT math.sqrt(25)
+
+OUTPUT Bool(3)
+
+OUTPUT Integer(3)

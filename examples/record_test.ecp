@@ -23,6 +23,3 @@ ENDRECORD
 test := a(b(1))
 
 OUTPUT test.b.num
-
-t := []
-OUTPUT t.a

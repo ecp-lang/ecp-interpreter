@@ -108,10 +108,7 @@ class Record(AST):
         self.token = token
         self.parameters = []
 
-class RecordObject(TraversableItem):
-    def __init__(self, base: Record):
-        self.base = base
-        self.properties = {}
+
 
 class UnaryOp(AST):
     def __init__(self, op, expr):
@@ -184,39 +181,107 @@ class Object(AST):
 
     def __div__(self, other):
         return Object.create(self.value / other.value)
+    
+    def __str__(self):
+        return str(self.value)
 
+    def __repr__(self):
+        return self.__str__()
+    
+    def __get__(self, key, default):
+        if isinstance(key, Object):
+            return self.properties[key.value]
+        return self.properties[key]
+    
+    def __set__(self, key, value):
+        if isinstance(key, Object):
+            self.properties[key.value] = value
+        else:
+            self.properties[key] = value
+    
+    def __getitem__(self, index):
+        if isinstance(index, Object):
+            index = index.value
+        if isinstance(index, int):
+            return self.value[index]
+        else:
+            return self.properties[index]
+    
+    def __setitem__(self, index, value):
+        if isinstance(index, Object):
+            index = index.value
+        if isinstance(index, int):
+            self.value[index] = value
+        else:
+            self.properties[index] = value
+    
     @staticmethod
     def create(value):
-        return Object.associations[type(value).__name__](value)    
+        t = Object.associations.get(type(value).__name__)
+        if not t:
+            return value
+        return Object.associations[type(value).__name__](value)
 
 class IntObject(Object):
     def __init__(self, value):
-        super().__init__(int(value))
+        if isinstance(value, Object):
+            super().__init__(int(value.value))
+        else:
+            super().__init__(int(value))
 
 class FloatObject(Object):
-    pass
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(float(value.value))
+        else:
+            super().__init__(float(value))
 
 class BoolObject(Object):
-    pass
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(bool(value.value))
+        else:
+            super().__init__(bool(value))
 
 class StringObject(Object):
-    pass
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(str(value.value))
+        else:
+            super().__init__(str(value))
 
 class ArrayObject(Object):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(list(value.value))
+        else:
+            super().__init__(list(value))
         self.properties = {
             "append": self.append
         }
-    
-    def __getitem__(self, index):
-        return self.value[index]
-    
-    def __setitem(self, index, value):
-        self.value[index] = value
 
     def append(self, _object):
         self.value.append(_object)
+
+class RecordObject(Object):
+    def __init__(self, base: Record):
+        super().__init__(None)
+        self.base = base
+        self.properties = {}
+
+class BuiltinModule(Object):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class _math(BuiltinModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.properties = {
+            "sqrt": self.sqrt
+        }
+    
+    def sqrt(self, v: Object):
+        return Object.create(math.sqrt(v.value))
 
 Object.associations = {
     "int":   IntObject,
@@ -226,6 +291,15 @@ Object.associations = {
     "list":  ArrayObject,
 }
 
+Object.types = {
+    "Integer": IntObject,
+    "Int":     IntObject,
+    "Real":    FloatObject,
+    "Bool":    BoolObject,
+    "String":  StringObject,
+    "Array":   ArrayObject,
+}
+
         
 
 class ParseError(Exception):
@@ -233,11 +307,6 @@ class ParseError(Exception):
 
 class InterpreterError(Exception):
     pass
-
-class BuiltinSubroutineCall(AST):
-    def __init__(self, subroutine_token, parameters):
-        self.subroutine_token = subroutine_token
-        self.parameters = parameters
 
 class IfStatement(AST):
     def __init__(self, condition):
@@ -349,8 +418,6 @@ class Parser:
                 node = self.assignment_statement(var)
         elif self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
-        elif self.current_token.type in (TokenType.BUILTIN_FUNCTION, TokenType.TYPE):
-            node = self.builtin_function_call()
         elif self.current_token.type == TokenType.KEYWORD:
             node = self.process_keyword()
         elif self.current_token.type == TokenType.IF:
@@ -374,7 +441,7 @@ class Parser:
         token = self.current_token
         if self.current_token.type == TokenType.COLON:
             self.eat(TokenType.COLON)
-            self.eat(TokenType.TYPE)
+            self.eat(TokenType.ID) # TYPE
         self.eat(TokenType.ASSIGN)
         right = self.expr()
         node = Assign(left, token, right)
@@ -443,8 +510,6 @@ class Parser:
         
         elif token.type == TokenType.MAGIC:
             return self.magic_function()
-        elif self.current_token.type in (TokenType.BUILTIN_FUNCTION, TokenType.TYPE):
-            return self.builtin_function_call()
         else:
             node = self.variable()
             if self.current_token.type == TokenType.LPAREN:
@@ -534,28 +599,13 @@ class Parser:
 
         return node
     
-    def builtin_function_call(self):
-        token = self.current_token
-        self.eat(token.type) # TokenType.BUILTIN_FUNCTION or TokenType.TYPE
-        self.eat(TokenType.LPAREN)
-
-        parameters = []
-        if self.current_token.type != TokenType.RPAREN:
-            parameters.append(self.param())
-            while self.current_token.type == TokenType.COMMA:
-                self.eat(TokenType.COMMA)
-                parameters.append(self.param())
-        self.eat(TokenType.RPAREN)
-        
-        return BuiltinSubroutineCall(token, parameters)
-    
     def declare_param(self):
         var = self.variable()
         node = DeclaredParam(var, None)
         token = self.current_token
         if self.current_token.type == TokenType.COLON:
             self.eat(TokenType.COLON)
-            self.eat(TokenType.TYPE)
+            self.eat(TokenType.ID) # TYPE
         #if self.current_token.type == TokenType.ASSIGN:
         #    self.eat(TokenType.ASSIGN)
         #    right = self.expr()
@@ -718,7 +768,7 @@ class Parser:
             node.parameters.append(self.variable().value)
             if self.current_token.type == TokenType.COLON:
                 self.eat(TokenType.COLON)
-                self.eat(TokenType.TYPE)
+                self.eat(TokenType.ID) # TYPE
             self.eat_gap()
         
         self.eat_gap()
@@ -763,19 +813,33 @@ class NodeVisitor(object):
         raise Exception('No visit_{} method'.format(type(node).__name__))
 
 
-class BuiltinFunctionContainer:
-    def __init__(self, interpreter):
-        self.interpreter = interpreter
+class _BUILTINS(BuiltinModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.properties = {
+            "USERINPUT":      self.USERINPUT, 
+            "LEN":            self.LEN, 
+            "POSITION":       self.POSITION, 
+            "SUBSTRING":      self.SUBSTRING, 
+            "STRING_TO_INT":  self.STRING_TO_INT, 
+            "STRING_TO_REAL": self.STRING_TO_REAL, 
+            "INT_TO_STRING":  self.INT_TO_STRING, 
+            "REAL_TO_STRING": self.REAL_TO_STRING, 
+            "CHAR_TO_CODE":   self.CHAR_TO_CODE, 
+            "CODE_TO_CHAR":   self.CODE_TO_CHAR, 
+            "RANDOM_INT":     self.RANDOM_INT,
+            "SQRT":           self.SQRT,
+        }
     
     def USERINPUT(self, *args):
-        return Object.create(input(self.interpreter.visit(args[0].value).value if len(args) > 0 else ""))
+        return Object.create(input(args[0].value if len(args) > 0 else ""))
     
     def LEN(self, *args):
         return Object.create(len(args[0].value))
     
     def POSITION(self, s: Object, c: Object, *args):
-        string = self.interpreter.visit(s.value).value
-        to_match = self.interpreter.visit(c.value).value
+        string = s.value
+        to_match = c.value
 
         try:
             return Object.create(string.index(to_match))
@@ -822,15 +886,6 @@ class BuiltinFunctionContainer:
     def SQRT(self, num: Object):
         num = num.value
         return Object.create(math.sqrt(num))
-    
-    def Integer(self, other: Object):
-        return Object.create(int(other.value))
-    
-    def Real(self, other: Object):
-        return Object.create(float(other.value))
-    
-    def String(self, other: Object):
-        return Object.create(str(other.value))
 
 
 
@@ -841,7 +896,6 @@ class Interpreter(NodeVisitor):
         self.RETURN = False
         self.CONTINUE = False
         self.BREAK = False
-        self.builtin_subroutines_container = BuiltinFunctionContainer(self)
     
     def visit_BinOp(self, node: BinOp):
         if node.op.type == TokenType.ADD:
@@ -905,6 +959,9 @@ class Interpreter(NodeVisitor):
     def visit_ArrayObject(self, node: Object):
         return node
     
+    def visit_RecordObject(self, node: Object):
+        return node
+    
     def visit_method(self, method):
         return method
     
@@ -916,30 +973,26 @@ class Interpreter(NodeVisitor):
 
     def visit_NoOp(self, node: NoOp):
         pass
-
-    def set_element(self, l, index, value):
-        #print(f"list: {l}, indexes: {index}, value: {value}")
-        target = self.visit(index[0])
-        if(len(index) == 1):
-            if isinstance(target, int):
-                l[target] = value
+    
+    def set_element(self, L, index, value):
+        # function for recersively changing a object property
+        if len(index) < 2:
+            if isinstance(index[0].value, int):
+                L[index[0]] = value
             else:
-                l.properties[target] = value
-            #print(f"set {l}[{self.visit(index[0])}] to {value}")
+                L[index[0]] = value
         else:
-            if isinstance(target, int):
-                self.set_element(l[target], index[1:], value)
-            else:
-                self.set_element(l.properties[target], index[1:], value)
+            L[index[0]] = self.set_element(L[index[0]], index[1:], value)
+        return L
     
     def visit_Assign(self, node):
         var_name = node.left.value
         if var_name in self.current_scope._variables:
             val = self.visit_Var(node.left, traverse_lists=False)
             #print([self.visit(n) for n in node.left.array_indexes])
-            if isinstance(val, (list, str)) and len(node.left.array_indexes) > 0:
-                self.set_element(
-                    var_name, 
+            if len(node.left.array_indexes) > 0:
+                val = self.set_element(
+                    val, 
                     node.left.array_indexes, 
                     self.visit(node.right)
                 )
@@ -955,20 +1008,18 @@ class Interpreter(NodeVisitor):
         #print(f"val type: {type(val)}")
         if traverse_lists:
             for i in node.array_indexes:
-                target = self.visit(i).value
-                if isinstance(target, int):
-                    val = val[target]
-                else:
-                    val = val.properties[target]
+                target = self.visit(i)
+                
+                val = val[target]
+                # when a StringObject is sliced a string is returned but we want a StringObject
+                #print(type(val))
+                if not isinstance(val, (Object,)):
+                    val = Object.create(val)
+                
                 val = self.visit(val)
                 #print(f"val type: {type(val)}")
-
         
-                
-        if var_name not in self.current_scope._variables:
-            raise NameError(repr(var_name))
-        else:
-            return val
+        return val
     
     def visit_Magic(self, node):
         if node.token.value == "OUTPUT":
@@ -1033,11 +1084,6 @@ class Interpreter(NodeVisitor):
         else:
             parameters = [self.visit(p.value) for p in node.parameters]
             return function(*parameters)
-    
-    def visit_BuiltinSubroutineCall(self, node):
-        func = getattr(self.builtin_subroutines_container, node.subroutine_token.value, None)
-        if func:
-            return func(*[self.visit(p.value) for p in node.parameters])
         
     def visit_IfStatement(self, node: IfStatement):
         if self.visit(node.condition).value:
@@ -1085,7 +1131,9 @@ class Interpreter(NodeVisitor):
         else:
             iterator = self.visit(node.iterator).value
             for i in iterator:
-                current = self.visit(i).value
+                current = i
+                if isinstance(i, Object):
+                    current = self.visit(i).value
                 self.current_scope.insert(node.variable, Object.create(current))
                 self.visit(node.loop)
                 if self.CONTINUE:
@@ -1099,5 +1147,19 @@ class Interpreter(NodeVisitor):
         tree = self.parser.parse()
         global_scope = VariableScope("global", None)
         self.current_scope = global_scope
+
+
+        # register builtin functions
+        for name, f in _BUILTINS(None).properties.items():
+            v = Var(Token(name, TokenType.ID))
+            self.current_scope.insert(v, f)
+        # register builtin modules
+        for c in BuiltinModule.__subclasses__():
+            v = Var(Token(c.__name__[1:], TokenType.ID))
+            self.current_scope.insert(v, c(None))
+        # types
+        for name, t in Object.types.items():
+            v = Var(Token(name, TokenType.ID))
+            self.current_scope.insert(v, t)
         
         self.visit(tree)
