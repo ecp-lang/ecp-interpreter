@@ -1,0 +1,34 @@
+# https://stackoverflow.com/a/20924623
+# def eratosthenes(n):
+#     multiples = []
+#     for i in range(2, n+1):
+#         if i not in multiples:
+#             print(i)
+#             for j in range(i*i, n+1, i):
+#                 multiples.append(j)
+# 
+# eratosthenes(100)
+
+SUBROUTINE contains(l: Array, item)
+    FOR element IN l
+        IF item = element THEN
+            RETURN True
+        ENDIF
+    ENDFOR
+
+    RETURN False
+ENDSUBROUTINE
+
+SUBROUTINE eratosthenes(n)
+    multiples := []
+    FOR i := 2 TO n
+        IF NOT contains(multiples, i) THEN
+            OUTPUT i
+            FOR j := i*i TO n STEP i
+                multiples.append(j)
+            ENDFOR
+        ENDIF
+    ENDFOR
+ENDSUBROUTINE
+
+eratosthenes(100)

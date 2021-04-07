@@ -237,8 +237,7 @@ class Lexer:
                         is_string = True
                         beginning_quote = char
                     #print(char, beginning_quote, is_string)
-
-                if ((string[i+1] in white_space) or string[i+1] in KEYWORDS.keys() or self.lexme in KEYWORDS.keys()) and not is_string: # if next char == ' '
+                if ((string[i+1] not in ID_CHARS) or (string[i+1] in white_space) or (string[i+1] in KEYWORDS.keys()) or (self.lexme in KEYWORDS.keys())) and not is_string: # if next char == ' '
                     if self.lexme != "":
                         if is_number:
                             try:
@@ -266,7 +265,7 @@ class Lexer:
                                     KEYWORDS.get(self.lexme, TokenType.ID),
                                 )
                             else:
-                                if string[i+1] in ("=", "*"):
+                                if string[i+1] in ("=", "*") and char not in ID_CHARS: # multi length
                                     continue
                                 token_type = KEYWORDS.get(self.lexme, TokenType.ID)
                                 if token_type in key_tokens and string[i+1] in ID_CHARS:
