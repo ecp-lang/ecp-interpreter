@@ -1,62 +1,93 @@
 from lexer import *
 import random
 import math
+from pprint import pprint
 
 """
-grammar
+ECP full grammar
 
 program               :  statement_list EOF
+
+compound              :  statement_list
 
 statement_list        :  (statement)*
 
 statement             :  assignment_statement
+                      |  magic_function
+                      |  subroutine_call
+                      |  subroutine
+                      |  if_statement
+                      |  while_loop
+                      |  repeat_until_loop
+                      |  for_loop
 
 assignment_statement  :  variable ASSIGN expr
 
-magic_function        :  MAGIC expr (COMMA expr)*
+magic_function        :  MAGIC ( expr ( COMMA expr )* )?
 
-if_statement          : IF condition THEN statement_list ( else_if_statement | else_statement )? ENDIF
+subroutine_call       :  variable LPAREN ( param ( COMMA param )* )? RPAREN
+
+param                 :  expr
+
+subroutine            :  SUBROUTINE ID LPAREN ( param_definition ( COMMA parem_definition )* )? RPAREN compound ENDSUBROUTINE
+param_definition      :  variable
+
+
+if_statement          :  IF condition THEN compound ( else_if_statement | else_statement )? ENDIF
 else_if_statement     :  ELSE if_statement
-else_statement        :  ELSE statement_list
+else_statement        :  ELSE compound
 
-for_loop              : FOR assignment_statement TO expr (STEP expr)? statement_list ENDFOR
-                      | FOR variable IN expr statement_list ENDFOR
+for_loop              :  FOR assignment_statement TO expr (STEP expr)? compound ENDFOR
+                      |  FOR variable IN expr compound ENDFOR
 
-expr                  : bool_relation
+while_loop            :  WHILE expr compound ENDWHILE
 
-bool_relation         : relation (bool_op relation)*
-bool_op               : AND
-                      | OR
+repeat_until_loop     :  REPEAT compound UNTIL expr
 
-relation              : arithmetic_expr (rel_op arithmetic_expr)*
-rel_op                : LESS_THAN
-                      | GREATER_THAN
-                      | EQUAL
-                      | LESS_EQUAL
-                      | GREATER_EQUAL
-                      | NOT_EQUAL
-arithmetic_expr       : term ((PLUS | MINUS) term)*
-term                  : factor ((MUL | INT_DIV | DIV) factor)
+record_definition     :  RECORD ID (variable)* ENDRECORD
+
+try_catch             :  TRY compound CATCH compound ENDTRY
+
+expr                  :  term5
+
+term5                 :  term4  ( ( AND | OR            ) term4  )*
+term4                 :  term3  ( ( EQALITY_OP          ) term3  )*
+term3                 :  term2  ( ( ADD | SUB           ) term2  )*
+term2                 :  term   ( ( MUL | DIV | INT_DIV ) term   )*
+term                  :  factor ( ( POW | MOD           ) factor )*
+
+EQUALITY_OP           :  ( LT | LE | EQ | NE | GT | GE )
+
+
+factor                :  PLUS factor
+                      |  MINUS factor
+                      |  INTEGER_CONST
+                      |  REAL_CONST
+                      |  LPAREN expr RPAREN
+                      |  TRUE
+                      |  FALSE
+                      |  variable
+                      |  function_call
+                      |  array
+
+array                 :  LS_PAREN (expr (COMMA expr)*)? RS_PAREN
+
+variable              :  (CONSTANT)? ID (targeter)* (COLON TYPE)?
+
+targeter              :  LS_PAREN expr RS_PAREN
 
 
 
-factor                : PLUS factor
-                      | MINUS factor
-                      | INTEGER_CONST
-                      | REAL_CONST
-                      | LPAREN expr RPAREN
-                      | TRUE
-                      | FALSE
-                      | variable
-                      | function_call
-                      | array
-
-array                 : LS_PAREN (expr)? (COMMA expr)* RS_PAREN
-
-variable              :  ID
-
-assign                :  = | ←
-
+NOTE:
+The priority for math operations is as follows:
+    - HIGHEST PRECEDENCE -
+    factor :  (this can be seen as the final stage, where brackets are prcoessed etc)
+    term   :  pow, mod
+    term2  :  mul, div, int_div
+    term3  :  add, sub
+    term4  :  lt, le, eq, ne, gt, ge
+    term5  :  and, or
+    - LOWEST PRECEDENCE -
 """
 
 
@@ -64,6 +95,8 @@ assign                :  = | ←
 class AST(object):
     pass
 
+class TraversableItem(object):
+    pass
 
 class BinOp(AST):
     def __init__(self, left, op, right):
@@ -72,30 +105,12 @@ class BinOp(AST):
         self.right = right
 
 
-class Num(AST):
+class Record(AST):
     def __init__(self, token):
         self.token = token
-        self.value = token.value
+        self.parameters = []
 
-class String(AST):
-    def __init__(self, token):
-        self.token = token
-        self.value = token.value
 
-class Bool(AST):
-    def __init__(self, token):
-        self.token = token
-        self.value = token.value
-
-class Array(AST):
-    def __init__(self, value):
-        self.value = value
-    
-    def __setitem__(self, key, value):
-        self.value[key] = value
-    
-    def __getitem__(self, key):
-        return self.value[key]
 
 class UnaryOp(AST):
     def __init__(self, op, expr):
@@ -152,16 +167,148 @@ class NoOp(AST):
     pass
 
 
+class Object(AST):
+    def __init__(self, value):
+        self.value = value
+        self.properties = {}
+    
+    def __add__(self, other):
+        return Object.create(self.value + other.value)
+    
+    def __sub__(self, other):
+        return Object.create(self.value - other.value)
+    
+    def __mul__(self, other):
+        return Object.create(self.value * other.value)
+
+    def __div__(self, other):
+        return Object.create(self.value / other.value)
+    
+    def __str__(self):
+        return str(self.value)
+
+    def __repr__(self):
+        return self.__str__()
+    
+    def __get__(self, key, default):
+        if isinstance(key, Object):
+            return self.properties[key.value]
+        return self.properties[key]
+    
+    def __set__(self, key, value):
+        if isinstance(key, Object):
+            self.properties[key.value] = value
+        else:
+            self.properties[key] = value
+    
+    def __getitem__(self, index):
+        if isinstance(index, Object):
+            index = index.value
+        if isinstance(index, int):
+            return self.value[index]
+        else:
+            return self.properties[index]
+    
+    def __setitem__(self, index, value):
+        if isinstance(index, Object):
+            index = index.value
+        if isinstance(index, int):
+            self.value[index] = value
+        else:
+            self.properties[index] = value
+    
+    @staticmethod
+    def create(value):
+        t = Object.associations.get(type(value).__name__)
+        if not t:
+            return value
+        return Object.associations[type(value).__name__](value)
+
+class IntObject(Object):
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(int(value.value))
+        else:
+            super().__init__(int(value))
+
+class FloatObject(Object):
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(float(value.value))
+        else:
+            super().__init__(float(value))
+
+class BoolObject(Object):
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(bool(value.value))
+        else:
+            super().__init__(bool(value))
+
+class StringObject(Object):
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(str(value.value))
+        else:
+            super().__init__(str(value))
+
+class ArrayObject(Object):
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(list(value.value))
+        else:
+            super().__init__(list(value))
+        self.properties = {
+            "append": self.append
+        }
+
+    def append(self, _object):
+        self.value.append(_object)
+
+class RecordObject(Object):
+    def __init__(self, base: Record):
+        super().__init__(None)
+        self.base = base
+        self.properties = {}
+
+class BuiltinModule(Object):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class _math(BuiltinModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.properties = {
+            "sqrt": self.sqrt
+        }
+    
+    def sqrt(self, v: Object):
+        return Object.create(math.sqrt(v.value))
+
+Object.associations = {
+    "int":   IntObject,
+    "float": FloatObject,
+    "bool":  BoolObject,
+    "str":   StringObject,
+    "list":  ArrayObject,
+}
+
+Object.types = {
+    "Integer": IntObject,
+    "Int":     IntObject,
+    "Real":    FloatObject,
+    "Bool":    BoolObject,
+    "String":  StringObject,
+    "Array":   ArrayObject,
+}
+
+        
+
 class ParseError(Exception):
     pass
 
 class InterpreterError(Exception):
     pass
-
-class BuiltinSubroutineCall(AST):
-    def __init__(self, subroutine_token, parameters):
-        self.subroutine_token = subroutine_token
-        self.parameters = parameters
 
 class IfStatement(AST):
     def __init__(self, condition):
@@ -187,6 +334,11 @@ class ForLoop(AST):
 
 class RepeatUntilStatement(WhileStatement):
     pass
+
+class TryCatch(AST):
+    def __init__(self, try_compound, catch_compound):
+        self.try_compound = try_compound
+        self.catch_compound = catch_compound
 
 #class BuiltinType(object):
 #    def __init__(self, value):
@@ -265,7 +417,7 @@ class Parser:
         return results
     
     def statement(self):
-        if self.current_token.type == TokenType.ID:
+        if self.current_token.type in (TokenType.ID, TokenType.CONSTANT):
             var = self.variable()
             if self.current_token.type == TokenType.LPAREN:
                 node = self.subroutine_call(var)
@@ -273,8 +425,6 @@ class Parser:
                 node = self.assignment_statement(var)
         elif self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
-        elif self.current_token.type in (TokenType.BUILTIN_FUNCTION, TokenType.TYPE):
-            node = self.builtin_function_call()
         elif self.current_token.type == TokenType.KEYWORD:
             node = self.process_keyword()
         elif self.current_token.type == TokenType.IF:
@@ -287,6 +437,10 @@ class Parser:
             node = self.repeat_until_statement()
         elif self.current_token.type == TokenType.FOR:
             node = self.for_loop()
+        elif self.current_token.type == TokenType.RECORD:
+            return self.record_definition()
+        elif self.current_token.type == TokenType.TRY:
+            return self.try_catch()
         else:
             node = self.empty()
         return node
@@ -296,20 +450,31 @@ class Parser:
         token = self.current_token
         if self.current_token.type == TokenType.COLON:
             self.eat(TokenType.COLON)
-            self.eat(TokenType.TYPE)
+            self.eat(TokenType.ID) # TYPE
         self.eat(TokenType.ASSIGN)
         right = self.expr()
         node = Assign(left, token, right)
         return node
     
     def variable(self):
+        if self.current_token.type == TokenType.CONSTANT:
+            self.eat(TokenType.CONSTANT)
         node = Var(self.current_token)
         self.eat(TokenType.ID)
-        while self.current_token.type == TokenType.LS_PAREN:
-            self.eat(TokenType.LS_PAREN)
-            node.array_indexes.append(self.expr())
-            self.eat(TokenType.RS_PAREN)
+        while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
+            if self.current_token.type == TokenType.LS_PAREN:
+                self.eat(TokenType.LS_PAREN)
+                node.array_indexes.append(self.expr())
+                self.eat(TokenType.RS_PAREN)
+            elif self.current_token.type == TokenType.DOT:
+                self.eat(TokenType.DOT)
+                node.array_indexes.append(self.id())
         return node
+    
+    def id(self):
+        token = self.current_token
+        self.eat(TokenType.ID)
+        return StringObject(token.value)
     
     def empty(self):
         return NoOp()
@@ -339,15 +504,10 @@ class Parser:
             self.eat(TokenType.NOT)
             node = UnaryOp(token, self.factor())
             return node
-        elif token.type == TokenType.INT:
-            self.eat(TokenType.INT)
-            return Num(token)
-        elif token.type == TokenType.FLOAT:
-            self.eat(TokenType.FLOAT)
-            return Num(token)
-        elif token.type == TokenType.BOOLEAN:
-            self.eat(TokenType.BOOLEAN)
-            return Bool(token)
+        elif token.type in (TokenType.INT, TokenType.FLOAT, TokenType.BOOLEAN, TokenType.STRING):
+            self.eat(token.type)
+            return Object.create(token.value)
+        
         elif token.type == TokenType.LPAREN:
             self.eat(TokenType.LPAREN)
             node = self.expr()
@@ -358,33 +518,16 @@ class Parser:
             node = self.array()
             self.eat(TokenType.RS_PAREN)
             return node
-        elif token.type == TokenType.STRING:
-            self.eat(TokenType.STRING)
-            return String(token)
+        
         elif token.type == TokenType.MAGIC:
             return self.magic_function()
-        elif self.current_token.type in (TokenType.BUILTIN_FUNCTION, TokenType.TYPE):
-            return self.builtin_function_call()
         else:
             node = self.variable()
             if self.current_token.type == TokenType.LPAREN:
                 node = self.subroutine_call(node)
             return node
 
-    
     def term(self):
-        """term : factor (( MUL | DIV ) factor)* """
-        node = self.actual_term()
-
-        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV):
-            token = self.current_token
-            self.eat(token.type)
-        
-            node = BinOp(left=node, op=token, right=self.actual_term())
-        
-        return node
-    
-    def actual_term(self):
         node = self.factor()
 
         while self.current_token.type in (TokenType.POW, TokenType.MOD):
@@ -395,13 +538,22 @@ class Parser:
         
         return node
     
-    def expr(self):
-        return self.bool_relation()
-
-    def arithmetic_expr(self):
-        """expr   :  term (( PLUS | MINUS ) term)*
-        """
+    def term2(self):
+        
         node = self.term()
+
+        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV):
+            token = self.current_token
+            self.eat(token.type)
+        
+            node = BinOp(left=node, op=token, right=self.term())
+        
+        return node
+    
+
+    def term3(self):
+        
+        node = self.term2()
 
         while self.current_token.type in (
             TokenType.ADD, TokenType.SUB, 
@@ -410,36 +562,13 @@ class Parser:
             token = self.current_token
             self.eat(token.type)
             
-            node = BinOp(left=node, op=token, right=self.term())
+            node = BinOp(left=node, op=token, right=self.term2())
         
         return node
     
-    def bool_relation(self):
-        """
-        bool_relation : relation (bool_op relation)*
-        bool_op       : AND
-                      | OR
-        """
-        node = self.relation()
-        while self.current_token.type in (
-            TokenType.AND, TokenType.OR,
-        ):
-            token = self.current_token
-            self.eat(token.type)
-            node = BinOp(left=node, op=token, right=self.relation())
-        return node
+    def term4(self):
         
-    def relation(self):
-        """
-        relation : arithmetic_expr (rel_op arithmetic_expr)*
-        rel_op   : LESS_THAN
-                 | GREATER_THAN
-                 | EQUAL
-                 | LESS_EQUAL
-                 | GREATER_EQUAL
-                 | NOT_EQUAL
-        """
-        node = self.arithmetic_expr()
+        node = self.term3()
         while self.current_token.type in (
             TokenType.LT,
             TokenType.GT,
@@ -450,8 +579,23 @@ class Parser:
         ):
             token = self.current_token
             self.eat(token.type)
-            node = BinOp(left=node, op=token, right=self.arithmetic_expr())
+            node = BinOp(left=node, op=token, right=self.term3())
         return node
+    
+    def term5(self):
+        
+        node = self.term4()
+        while self.current_token.type in (
+            TokenType.AND, TokenType.OR,
+        ):
+            token = self.current_token
+            self.eat(token.type)
+            node = BinOp(left=node, op=token, right=self.term4())
+        return node
+        
+    
+    def expr(self):
+        return self.term5()
 
     def magic_function(self):
         token = self.current_token
@@ -466,28 +610,13 @@ class Parser:
 
         return node
     
-    def builtin_function_call(self):
-        token = self.current_token
-        self.eat(token.type) # TokenType.BUILTIN_FUNCTION or TokenType.TYPE
-        self.eat(TokenType.LPAREN)
-
-        parameters = []
-        if self.current_token.type != TokenType.RPAREN:
-            parameters.append(self.param())
-            while self.current_token.type == TokenType.COMMA:
-                self.eat(TokenType.COMMA)
-                parameters.append(self.param())
-        self.eat(TokenType.RPAREN)
-        
-        return BuiltinSubroutineCall(token, parameters)
-    
     def declare_param(self):
         var = self.variable()
         node = DeclaredParam(var, None)
         token = self.current_token
         if self.current_token.type == TokenType.COLON:
             self.eat(TokenType.COLON)
-            self.eat(TokenType.TYPE)
+            self.eat(TokenType.ID) # TYPE
         #if self.current_token.type == TokenType.ASSIGN:
         #    self.eat(TokenType.ASSIGN)
         #    right = self.expr()
@@ -550,7 +679,7 @@ class Parser:
         if self.current_token.type == TokenType.ELSE and self.next_token.type == TokenType.IF:
             alternatives.append(self.elseif_statement())
         elif self.current_token.type == TokenType.ELSE:
-            alternatives.extend(self.else_statement())
+            alternatives.append(self.else_statement())
         
         node = IfStatement(condition=condition)
         node.consequence = consequence
@@ -605,7 +734,7 @@ class Parser:
                 self.eat_gap()
         self.eat_gap()
         #print(values)
-        return Array(values)
+        return ArrayObject(values)
     
     def for_loop(self):
         """for_loop   : FOR ID ASSIGN expr TO expr (STEP expr)? statement_list ENDFOR
@@ -639,6 +768,32 @@ class Parser:
         self.eat(TokenType.KEYWORD)
         return f
     
+    def record_definition(self):
+        """record_definition  :  RECORD ID (variable)* ENDRECORD"""
+        self.eat(TokenType.RECORD)
+        token = self.id()
+        node = Record(token)
+        self.eat_gap()
+        while self.current_token.type != TokenType.KEYWORD:
+            self.eat_gap()
+            node.parameters.append(self.variable().value)
+            if self.current_token.type == TokenType.COLON:
+                self.eat(TokenType.COLON)
+                self.eat(TokenType.ID) # TYPE
+            self.eat_gap()
+        
+        self.eat_gap()
+        self.eat(TokenType.KEYWORD)
+        return node
+    
+    def try_catch(self):
+        self.eat(TokenType.TRY)
+        try_compound = self.compound()
+        self.eat(TokenType.CATCH)
+        catch_compound = self.compound()
+        self.eat(TokenType.KEYWORD)
+
+        return TryCatch(try_compound, catch_compound)
 
     def parse(self):
         node = self.program()
@@ -678,192 +833,217 @@ class NodeVisitor(object):
         raise Exception('No visit_{} method'.format(type(node).__name__))
 
 
-class BuiltinFunctionContainer:
-    def __init__(self, interpreter):
-        self.interpreter = interpreter
+class _BUILTINS(BuiltinModule):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.properties = {
+            "USERINPUT":      self.USERINPUT, 
+            "LEN":            self.LEN, 
+            "POSITION":       self.POSITION, 
+            "SUBSTRING":      self.SUBSTRING, 
+            "STRING_TO_INT":  self.STRING_TO_INT, 
+            "STRING_TO_REAL": self.STRING_TO_REAL, 
+            "INT_TO_STRING":  self.INT_TO_STRING, 
+            "REAL_TO_STRING": self.REAL_TO_STRING, 
+            "CHAR_TO_CODE":   self.CHAR_TO_CODE, 
+            "CODE_TO_CHAR":   self.CODE_TO_CHAR, 
+            "RANDOM_INT":     self.RANDOM_INT,
+            "SQRT":           self.SQRT,
+        }
     
     def USERINPUT(self, *args):
-        return input(self.interpreter.visit(args[0].value) if len(args) > 0 else "")
+        return Object.create(input(args[0].value if len(args) > 0 else ""))
     
     def LEN(self, *args):
-        return len(self.interpreter.visit(args[0].value))
+        return Object.create(len(args[0].value))
     
-    def POSITION(self, s: Param, c: Param, *args):
-        string = self.interpreter.visit(s.value)
-        to_match = self.interpreter.visit(c.value)
+    def POSITION(self, s: Object, c: Object, *args):
+        string = s.value
+        to_match = c.value
 
         try:
-            return string.index(to_match)
+            return Object.create(string.index(to_match))
         except ValueError:
             return -1
     
-    def SUBSTRING(self, start: Param, end: Param, string: Param, *args):
-        start = self.interpreter.visit(start.value)
-        end = self.interpreter.visit(end.value)
-        string = self.interpreter.visit(string.value)
+    def SUBSTRING(self, start: Object, end: Object, string: Object, *args):
+        start = start.value
+        end = end.value
+        string = string.value
 
-        return string[start:end+1]
+        return Object.create(string[start:end+1])
     
-    def STRING_TO_INT(self, string: Param):
-        string = self.interpreter.visit(string.value)
-        return int(string)
+    def STRING_TO_INT(self, string: Object):
+        string = string.value
+        return Object.create(int(string))
     
-    def STRING_TO_REAL(self, string: Param):
-        string = self.interpreter.visit(string.value)
-        return float(string)
+    def STRING_TO_REAL(self, string: Object):
+        string = string.value
+        return Object.create(float(string))
     
-    def INT_TO_STRING(self, integer: Param):
-        integer = self.interpreter.visit(integer.value)
-        return str(integer)
+    def INT_TO_STRING(self, integer: Object):
+        integer = integer.value
+        return Object.create(str(integer))
     
-    def REAL_TO_STRING(self, real: Param):
-        real = self.interpreter.visit(real.value)
-        return str(real)
+    def REAL_TO_STRING(self, real: Object):
+        real = real.value
+        return Object.create(str(real))
     
-    def CHAR_TO_CODE(self, char: Param):
-        char = self.interpreter.visit(char.value)
-        return ord(char)
+    def CHAR_TO_CODE(self, char: Object):
+        char = char.value
+        return Object.create(ord(char))
     
-    def CODE_TO_CHAR(self, code: Param):
-        code = self.interpreter.visit(code.value)
-        return chr(code)
+    def CODE_TO_CHAR(self, code: Object):
+        code = code.value
+        return Object.create(chr(code))
     
-    def RANDOM_INT(self, a: Param, b: Param):
-        a = self.interpreter.visit(a.value)
-        b = self.interpreter.visit(b.value)
+    def RANDOM_INT(self, a: Object, b: Object):
+        a = a.value
+        b = b.value
 
-        return random.randint(a, b)
+        return Object.create(random.randint(a, b))
     
-    def SQRT(self, num: Param):
-        num = self.interpreter.visit(num.value)
-        return math.sqrt(num)
-    
-    def Int(self, other: Param):
-        return int(self.interpreter.visit(other.value))
-    
-    def Real(self, other: Param):
-        return float(self.interpreter.visit(other.value))
-    
-    def String(self, other: Param):
-        return str(self.interpreter.visit(other.value))
+    def SQRT(self, num: Object):
+        num = num.value
+        return Object.create(math.sqrt(num))
 
 
 
 class Interpreter(NodeVisitor):
-    def __init__(self, parser):
+    def __init__(self, parser: Parser):
         self.parser = parser
         self.current_scope = None
         self.RETURN = False
         self.CONTINUE = False
         self.BREAK = False
-        self.builtin_subroutines_container = BuiltinFunctionContainer(self)
     
-    def visit_BinOp(self, node):
+    def visit_BinOp(self, node: BinOp):
         if node.op.type == TokenType.ADD:
-            return self.visit(node.left) + self.visit(node.right)
+            result = self.visit(node.left).value + self.visit(node.right).value
         elif node.op.type == TokenType.SUB:
-            return self.visit(node.left) - self.visit(node.right)
+            result = self.visit(node.left).value - self.visit(node.right).value
         elif node.op.type == TokenType.MUL:
-            return self.visit(node.left) * self.visit(node.right)
+            result = self.visit(node.left).value * self.visit(node.right).value
         elif node.op.type == TokenType.DIV:
-            return self.visit(node.left) / self.visit(node.right)
+            result = self.visit(node.left).value / self.visit(node.right).value
         elif node.op.type == TokenType.INT_DIV:
-            return self.visit(node.left) // self.visit(node.right)
+            result = self.visit(node.left).value // self.visit(node.right).value
         elif node.op.type == TokenType.MOD:
-            return self.visit(node.left) % self.visit(node.right)
+            result = self.visit(node.left).value % self.visit(node.right).value
         elif node.op.type == TokenType.POW:
-            return self.visit(node.left) ** self.visit(node.right)
+            result = self.visit(node.left).value ** self.visit(node.right).value
         
         elif node.op.type == TokenType.GT:
-            return self.visit(node.left) > self.visit(node.right)
+            result = self.visit(node.left).value > self.visit(node.right).value
         elif node.op.type == TokenType.GE:
-            return self.visit(node.left) >= self.visit(node.right)
+            result = self.visit(node.left).value >= self.visit(node.right).value
         elif node.op.type == TokenType.EQ:
-            return self.visit(node.left) == self.visit(node.right)
+            result = self.visit(node.left).value == self.visit(node.right).value
         elif node.op.type == TokenType.NE:
-            return self.visit(node.left) != self.visit(node.right)
+            result = self.visit(node.left).value != self.visit(node.right).value
         elif node.op.type == TokenType.LT:
-            return self.visit(node.left) < self.visit(node.right)
+            result = self.visit(node.left).value < self.visit(node.right).value
         elif node.op.type == TokenType.LE:
-            return self.visit(node.left) <= self.visit(node.right)
+            result = self.visit(node.left).value <= self.visit(node.right).value
         elif node.op.type == TokenType.AND:
-            return self.visit(node.left) and self.visit(node.right)
+            result = self.visit(node.left).value and self.visit(node.right).value
         elif node.op.type == TokenType.OR:
-            return self.visit(node.left) or self.visit(node.right)
+            result = self.visit(node.left).value or self.visit(node.right).value
+        
+        return Object.create(result)
         
     
-    def visit_UnaryOp(self, node):
+    def visit_UnaryOp(self, node: UnaryOp):
         op = node.op.type
         if op == TokenType.ADD:
-            return +self.visit(node.expr)
+            result = +self.visit(node.expr).value
         elif op == TokenType.SUB:
-            return -self.visit(node.expr)
+            result = -self.visit(node.expr).value
         elif op == TokenType.NOT:
-            return not self.visit(node.expr)
+            result = not self.visit(node.expr).value
+        
+        return Object.create(result)
 
-    def visit_Num(self, node):
-        return node.value
+    def visit_IntObject(self, node: Object):
+        return node
     
-    def visit_String(self, node):
-        return node.value
+    def visit_FloatObject(self, node: Object):
+        return node
     
-    def visit_Bool(self, node):
-        return node.value
+    def visit_BoolObject(self, node: Object):
+        return node
+
+    def visit_StringObject(self, node: Object):
+        return node
+
+    def visit_ArrayObject(self, node: Object):
+        return node
     
-    def visit_Array(self, node):
-        return node.value
+    def visit_RecordObject(self, node: Object):
+        return node
     
-    def visit_Compound(self, node):
+    def visit_method(self, method):
+        return method
+    
+    def visit_Compound(self, node: Compound):
         for child in node.children:
-            if self.RETURN or self.BREAK | self.CONTINUE:
+            if self.RETURN or self.BREAK or self.CONTINUE:
                 break
             self.visit(child)
 
-    def visit_NoOp(self, node):
+    def visit_NoOp(self, node: NoOp):
         pass
-
-    def set_element(self, l, index, value):
-        #print(f"list: {l}, indexes: {index}, value: {value}")
-        if(len(index) == 1):
-            l[self.visit(index[0])] = value
-            #print(f"set {l}[{self.visit(index[0])}] to {value}")
+    
+    def set_element(self, L, index, value):
+        # function for recersively changing a object property
+        if len(index) < 2:
+            if isinstance(index[0].value, int):
+                L[index[0]] = value
+            else:
+                L[index[0]] = value
         else:
-            self.set_element(l[self.visit(index[0])],index[1:],value)
+            L[index[0]] = self.set_element(L[index[0]], index[1:], value)
+        return L
     
     def visit_Assign(self, node):
         var_name = node.left.value
         if var_name in self.current_scope._variables:
             val = self.visit_Var(node.left, traverse_lists=False)
-            if isinstance(val, (list, str)) and len(node.left.array_indexes) > 0:
-                self.set_element(
-                    self.current_scope._variables[node.left.value], 
+            #print([self.visit(n) for n in node.left.array_indexes])
+            if len(node.left.array_indexes) > 0:
+                val = self.set_element(
+                    val, 
                     node.left.array_indexes, 
                     self.visit(node.right)
                 )
                 return
         self.current_scope.insert(node.left, self.visit(node.right))
+
+        #print("MEM:")
+        #pprint(self.current_scope._variables)
     
-    def visit_Var(self, node, traverse_lists = True):
+    def visit_Var(self, node: Var, traverse_lists = True):
         var_name = node.value
         val = self.current_scope.get(node)
         #print(f"val type: {type(val)}")
-        if isinstance(val, (list, str)) and traverse_lists:
+        if traverse_lists:
             for i in node.array_indexes:
-                val = val[self.visit(i)]
-                if isinstance(val, AST):
-                    val = self.visit(val)
-                #print(f"val type: {type(val)}")
-
-        
+                target = self.visit(i)
                 
-        if var_name not in self.current_scope._variables:
-            raise NameError(repr(var_name))
-        else:
-            return val
+                val = val[target]
+                # when a StringObject is sliced a string is returned but we want a StringObject
+                #print(type(val))
+                if not isinstance(val, (Object,)):
+                    val = Object.create(val)
+                
+                val = self.visit(val)
+                #print(f"val type: {type(val)}")
+        
+        return val
     
     def visit_Magic(self, node):
         if node.token.value == "OUTPUT":
-            values = [self.visit(n) for n in node.parameters]
+            values = [self.visit(n).value for n in node.parameters]
             print(*values)
         elif node.token.value == "RETURN":
             values = [self.visit(n) for n in node.parameters]
@@ -880,43 +1060,60 @@ class Interpreter(NodeVisitor):
         #for c in node.children:
         #    print("  ", c)
     
-    def visit_SubroutineCall(self, node):
-        #print(f"called {node.subroutine_token.value}({', '.join([str(n.value.value) for n in node.parameters])})")
-        function = self.current_scope.get(node.subroutine_token)
-        
-        function_scope = VariableScope(node.subroutine_token.value, self.current_scope)
+    def visit_Record(self, node):
+        self.current_scope.insert(node.token, node)
 
-        #print(function)
-        if len(function.parameters) != len(node.parameters):
-            raise InterpreterError("mismatched function parameters")
-        for c, p in enumerate(function.parameters):
-            function_scope.insert(p.variable, self.visit(node.parameters[c].value))
+    def create_RecordObject(self, node: SubroutineCall, base: Record):
+        record_object = RecordObject(base=base)
+
+        for name, param in zip(base.parameters, node.parameters):
+            value = self.visit(param.value)
+            record_object.properties[name] = value
+
+        return record_object
+
+    def visit_SubroutineCall(self, node: SubroutineCall):
+        #print(f"called {self.visit(node.subroutine_token)}({', '.join([str(n.value.value) for n in node.parameters])})")
+        function = self.visit(node.subroutine_token)
         
-        self.current_scope = function_scope
-        # execute function
-        self.RETURN_VALUE = None
-        self.RETURN = False
-        self.visit(function.compound)
-        self.RETURN = False
-        result = self.RETURN_VALUE
-        self.RETURN_VALUE = None
-        self.current_scope = self.current_scope.enclosing_scope
-        return result
-    
-    def visit_BuiltinSubroutineCall(self, node):
-        func = getattr(self.builtin_subroutines_container, node.subroutine_token.value, None)
-        if func:
-            return func(*node.parameters)
+        if isinstance(function, Record):
+            return self.create_RecordObject(node, function)
         
-    def visit_IfStatement(self, node):
-        if self.visit(node.condition):
+        elif isinstance(function, Subroutine):
+            
+            function_scope = VariableScope(node.subroutine_token.value, self.current_scope)
+
+            #print(function)
+            if len(function.parameters) != len(node.parameters):
+                raise InterpreterError("mismatched function parameters")
+            for c, p in enumerate(function.parameters):
+                #print(self.visit(node.parameters[c].value))
+                function_scope.insert(p.variable, self.visit(node.parameters[c].value))
+
+            self.current_scope = function_scope
+            # execute function
+            self.RETURN_VALUE = None
+            self.RETURN = False
+            self.visit(function.compound)
+            self.RETURN = False
+            result = self.RETURN_VALUE
+            self.RETURN_VALUE = None
+            self.current_scope = self.current_scope.enclosing_scope
+            return result
+        
+        else:
+            parameters = [self.visit(p.value) for p in node.parameters]
+            return function(*parameters)
+        
+    def visit_IfStatement(self, node: IfStatement):
+        if self.visit(node.condition).value:
             self.visit(node.consequence)
         else:
             for statement in node.alternatives:
                 self.visit(statement)
     
     def visit_WhileStatement(self, node):
-        while self.visit(node.condition):
+        while self.visit(node.condition).value:
             self.visit(node.consequence)
             if self.CONTINUE:
                 self.CONTINUE = False
@@ -936,14 +1133,14 @@ class Interpreter(NodeVisitor):
                 self.BREAK = False
                 break
             
-            if self.visit(node.condition):
+            if self.visit(node.condition).value:
                 break
     
     def visit_ForLoop(self, node: ForLoop):
         if node.to_step:
-            step = self.visit(node.step) if node.step else 1
-            for i in range(self.visit(node.start), self.visit(node.end)+1, step):
-                self.current_scope.insert(node.variable, i)
+            step = self.visit(node.step).value if node.step else 1
+            for i in range(self.visit(node.start).value, self.visit(node.end).value+1, step):
+                self.current_scope.insert(node.variable, Object.create(i))
                 self.visit(node.loop)
                 if self.CONTINUE:
                     self.CONTINUE = False
@@ -952,10 +1149,12 @@ class Interpreter(NodeVisitor):
                     self.BREAK = False
                     break
         else:
-            iterator = self.visit(node.iterator)
+            iterator = self.visit(node.iterator).value
             for i in iterator:
-                current = self.visit(i) if isinstance(i, AST) else i
-                self.current_scope.insert(node.variable, current)
+                current = i
+                if isinstance(i, Object):
+                    current = self.visit(i).value
+                self.current_scope.insert(node.variable, Object.create(current))
                 self.visit(node.loop)
                 if self.CONTINUE:
                     self.CONTINUE = False
@@ -964,9 +1163,29 @@ class Interpreter(NodeVisitor):
                     self.BREAK = False
                     break
     
+    def visit_TryCatch(self, node: TryCatch):
+        try:
+            self.visit(node.try_compound)
+        except:
+            self.visit(node.catch_compound)
+    
     def interpret(self):
         tree = self.parser.parse()
         global_scope = VariableScope("global", None)
         self.current_scope = global_scope
+
+
+        # register builtin functions
+        for name, f in _BUILTINS(None).properties.items():
+            v = Var(Token(name, TokenType.ID))
+            self.current_scope.insert(v, f)
+        # register builtin modules
+        for c in BuiltinModule.__subclasses__():
+            v = Var(Token(c.__name__[1:], TokenType.ID))
+            self.current_scope.insert(v, c(None))
+        # types
+        for name, t in Object.types.items():
+            v = Var(Token(name, TokenType.ID))
+            self.current_scope.insert(v, t)
         
         self.visit(tree)

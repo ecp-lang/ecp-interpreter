@@ -10,6 +10,7 @@ pyinstaller ^
  --exclude multiprocessing ^
  --exclude unittest ^
  --exclude urllib ^
+ --noconfirm ^
  ecp.py
 xcopy /E /I /Y dist ..\executables
 iscc ..\installers\compileiss.iss

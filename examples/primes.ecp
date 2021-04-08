@@ -1,9 +1,9 @@
-SUBROUTINE isPrime(n: Int)
+SUBROUTINE isPrime(n: Integer)
     IF n = 1 THEN
         RETURN False
     ENDIF
     found := False
-    FOR i := 2 TO Int(SQRT(n)) + 1
+    FOR i := 2 TO Integer(SQRT(n)) + 1
         IF n MOD i = 0 AND i != n THEN
             found := True
             BREAK

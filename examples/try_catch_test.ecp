@@ -1,0 +1,15 @@
+strings := [
+    "11",
+    "2.3",
+    "a",
+    "2.a"
+]
+
+FOR s IN strings
+    TRY
+        i := STRING_TO_REAL(s)
+        OUTPUT s,"is a valid real"
+    CATCH
+        OUTPUT s,"is not a valid real"
+    ENDTRY
+ENDFOR
