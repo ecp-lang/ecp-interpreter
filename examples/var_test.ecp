@@ -17,3 +17,7 @@ OUTPUT math.sqrt(25)
 OUTPUT Bool(3)
 
 OUTPUT Integer(3)
+
+CONSTANT a := 5
+
+OUTPUT a

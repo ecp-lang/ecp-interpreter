@@ -46,6 +46,8 @@ repeat_until_loop     :  REPEAT compound UNTIL expr
 
 record_definition     :  RECORD ID (variable)* ENDRECORD
 
+try_catch             :  TRY compound CATCH compound ENDTRY
+
 expr                  :  term5
 
 term5                 :  term4  ( ( AND | OR            ) term4  )*
@@ -70,7 +72,7 @@ factor                :  PLUS factor
 
 array                 :  LS_PAREN (expr (COMMA expr)*)? RS_PAREN
 
-variable              :  ID (targeter)* (COLON TYPE)?
+variable              :  (CONSTANT)? ID (targeter)* (COLON TYPE)?
 
 targeter              :  LS_PAREN expr RS_PAREN
 
@@ -333,6 +335,11 @@ class ForLoop(AST):
 class RepeatUntilStatement(WhileStatement):
     pass
 
+class TryCatch(AST):
+    def __init__(self, try_compound, catch_compound):
+        self.try_compound = try_compound
+        self.catch_compound = catch_compound
+
 #class BuiltinType(object):
 #    def __init__(self, value):
 #        self.value = value
@@ -410,7 +417,7 @@ class Parser:
         return results
     
     def statement(self):
-        if self.current_token.type == TokenType.ID:
+        if self.current_token.type in (TokenType.ID, TokenType.CONSTANT):
             var = self.variable()
             if self.current_token.type == TokenType.LPAREN:
                 node = self.subroutine_call(var)
@@ -432,6 +439,8 @@ class Parser:
             node = self.for_loop()
         elif self.current_token.type == TokenType.RECORD:
             return self.record_definition()
+        elif self.current_token.type == TokenType.TRY:
+            return self.try_catch()
         else:
             node = self.empty()
         return node
@@ -448,6 +457,8 @@ class Parser:
         return node
     
     def variable(self):
+        if self.current_token.type == TokenType.CONSTANT:
+            self.eat(TokenType.CONSTANT)
         node = Var(self.current_token)
         self.eat(TokenType.ID)
         while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
@@ -774,6 +785,15 @@ class Parser:
         self.eat_gap()
         self.eat(TokenType.KEYWORD)
         return node
+    
+    def try_catch(self):
+        self.eat(TokenType.TRY)
+        try_compound = self.compound()
+        self.eat(TokenType.CATCH)
+        catch_compound = self.compound()
+        self.eat(TokenType.KEYWORD)
+
+        return TryCatch(try_compound, catch_compound)
 
     def parse(self):
         node = self.program()
@@ -1142,6 +1162,12 @@ class Interpreter(NodeVisitor):
                 if self.BREAK:
                     self.BREAK = False
                     break
+    
+    def visit_TryCatch(self, node: TryCatch):
+        try:
+            self.visit(node.try_compound)
+        except:
+            self.visit(node.catch_compound)
     
     def interpret(self):
         tree = self.parser.parse()

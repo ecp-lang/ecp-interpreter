@@ -64,6 +64,9 @@ class TokenType(Enum):
     TO = "TO"
     IN = "IN"
     STEP = "STEP"
+    CONSTANT = "CONSTANT"
+    TRY = "TRY"
+    CATCH = "CATCH"
     RECORD = "RECORD"
 
 class Token:
@@ -155,6 +158,10 @@ keywords = {
     
     "RECORD": TokenType.RECORD,
     "ENDRECORD": TokenType.KEYWORD,
+    "CONSTANT": TokenType.CONSTANT,
+    "TRY": TokenType.TRY,
+    "CATCH": TokenType.CATCH,
+    "ENDTRY": TokenType.KEYWORD,
 }
 
 types = {
