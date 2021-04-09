@@ -1,4 +1,4 @@
-__version__ = "1.0.0-alpha"
+__version__ = "1.1.1-beta"
 from lexer import *
 from parse import *
 import argparse
