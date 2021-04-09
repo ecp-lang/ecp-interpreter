@@ -23,8 +23,8 @@ instance := a()
 OUTPUT instance
 OUTPUT [instance, "aa"]
 
-#OUTPUT "b", instance.b
-#instance.inc_b(1)
-#OUTPUT "b", instance.b
-#
-#OUTPUT "base", a.temp
+OUTPUT "b", instance.b
+instance.inc_b(1)
+OUTPUT "b", instance.b
+
+OUTPUT "base", a.temp
