@@ -111,10 +111,6 @@ class BinOp(AST):
         self.right = right
 
 
-class Record(AST):
-    def __init__(self, token):
-        self.token = token
-        self.parameters = []
 
 
 
@@ -275,11 +271,23 @@ class ArrayObject(Object):
     def append(self, _object):
         self.value.append(_object)
 
+class Record(Object):
+    def __init__(self, token):
+        super().__init__(None)
+        self.token = token
+        self.parameters = []
+    
+    def __str__(self):
+        return f"<record definition {self.token.value}>"
+
 class RecordObject(Object):
     def __init__(self, base: Record):
         super().__init__(None)
         self.base = base
         self.properties = {}
+    
+    def __str__(self):
+        return f"<record object {self.base.token.value}>"
 
 class ClassDefinition(Object):
     special_subroutines = [
@@ -1119,8 +1127,7 @@ class Interpreter(NodeVisitor):
             values = [str(self.visit(n)) for n in node.parameters]
             print(*values)
         elif node.token.value == "USERINPUT":
-            self.RETURN_VALUE = input()
-            self.RETURN = True
+            return Object.create(input())
         elif node.token.value == "RETURN":
             values = [self.visit(n) for n in node.parameters]
             self.RETURN_VALUE = values[0] if len(values) > 0 else None
