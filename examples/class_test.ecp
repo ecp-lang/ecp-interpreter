@@ -1,0 +1,30 @@
+CLASS a
+
+    temp := 1
+
+    SUBROUTINE INIT()
+        this.b := 0
+    ENDSUBROUTINE
+
+    SUBROUTINE STR()
+        RETURN "<aaa>"
+    ENDSUBROUTINE
+
+    SUBROUTINE REPR()
+        RETURN this.STR()
+    ENDSUBROUTINE
+
+    SUBROUTINE inc_b(value)
+        this.b := this.b + value
+    ENDSUBROUTINE
+ENDCLASS
+
+instance := a()
+OUTPUT instance
+OUTPUT [instance, "aa"]
+
+OUTPUT "b", instance.b
+instance.inc_b(1)
+OUTPUT "b", instance.b
+
+OUTPUT "base", a.temp

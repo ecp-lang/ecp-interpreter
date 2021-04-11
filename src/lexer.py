@@ -49,6 +49,7 @@ class TokenType(Enum):
     STRING = "STRING"
     ARRAY = "ARRAY"
     BUILTIN_FUNCTION = "BUILTIN_FUNCTION"
+    SUBROUTINE = "SUBROUTINE"
 
     ID = "ID"
     KEYWORD = "KEYWORD"
@@ -67,6 +68,7 @@ class TokenType(Enum):
     CONSTANT = "CONSTANT"
     TRY = "TRY"
     CATCH = "CATCH"
+    CLASS = "CLASS"
     RECORD = "RECORD"
 
 class Token:
@@ -130,12 +132,13 @@ builtin_functions = [
     #"SQRT",
 ]
 keywords = {
-    "SUBROUTINE": TokenType.KEYWORD, 
+    "SUBROUTINE": TokenType.SUBROUTINE, 
     "ENDSUBROUTINE": TokenType.KEYWORD, 
     "RETURN": TokenType.MAGIC,
     "CONTINUE": TokenType.MAGIC,
     "BREAK": TokenType.MAGIC,
     "OUTPUT": TokenType.MAGIC,
+    "USERINPUT": TokenType.MAGIC,
     "False": TokenType.BOOLEAN,
     "True": TokenType.BOOLEAN,
 
@@ -162,6 +165,8 @@ keywords = {
     "TRY": TokenType.TRY,
     "CATCH": TokenType.CATCH,
     "ENDTRY": TokenType.KEYWORD,
+    "CLASS": TokenType.CLASS,
+    "ENDCLASS": TokenType.KEYWORD,
 }
 
 types = {

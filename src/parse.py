@@ -2,6 +2,10 @@ from lexer import *
 import random
 import math
 from pprint import pprint
+from typing import *
+from copy import deepcopy
+
+__interpreter__ = None
 
 """
 ECP full grammar
@@ -45,6 +49,8 @@ while_loop            :  WHILE expr compound ENDWHILE
 repeat_until_loop     :  REPEAT compound UNTIL expr
 
 record_definition     :  RECORD ID (variable)* ENDRECORD
+
+class_definition      :  CLASS ( subroutine | assignment_statement ) ENDCLASS
 
 try_catch             :  TRY compound CATCH compound ENDTRY
 
@@ -105,10 +111,6 @@ class BinOp(AST):
         self.right = right
 
 
-class Record(AST):
-    def __init__(self, token):
-        self.token = token
-        self.parameters = []
 
 
 
@@ -157,6 +159,7 @@ class Subroutine(AST):
         self.parameters = parameters
         self.compound = compound
         self.builtin = False
+        self.classBase = None
 
 class SubroutineCall(AST):
     def __init__(self, subroutine_token, parameters):
@@ -183,12 +186,12 @@ class Object(AST):
 
     def __div__(self, other):
         return Object.create(self.value / other.value)
-    
+
     def __str__(self):
         return str(self.value)
 
     def __repr__(self):
-        return self.__str__()
+        return repr(self.value)
     
     def __get__(self, key, default):
         if isinstance(key, Object):
@@ -261,15 +264,68 @@ class ArrayObject(Object):
         self.properties = {
             "append": self.append
         }
+    
+    def __str__(self):
+        return f"[{', '.join([repr(__interpreter__.visit(i)) for i in self.value])}]"
 
     def append(self, _object):
         self.value.append(_object)
+
+class Record(Object):
+    def __init__(self, token):
+        super().__init__(None)
+        self.token = token
+        self.parameters = []
+    
+    def __str__(self):
+        return f"<record definition {self.token.value}>"
 
 class RecordObject(Object):
     def __init__(self, base: Record):
         super().__init__(None)
         self.base = base
         self.properties = {}
+    
+    def __str__(self):
+        return f"<record object {self.base.token.value}>"
+
+class ClassDefinition(Object):
+    special_subroutines = [
+        "STR", "REPR",
+        "INIT",
+    ]
+
+    def __init__(self, token: Var, static_values: List[Assign], subroutines: List[Subroutine]):
+        super().__init__(None)
+        self.token = token
+        self.static_values = static_values
+        self.subroutines = subroutines
+    
+    def __str__(self):
+        if "STR" in self.properties:
+            return str(__interpreter__.visit(SubroutineCall(self.properties["STR"], [])))
+        return f"<class definition {self.token.value}>"
+    
+    def __repr__(self):
+        if "REPR" in self.properties:
+            return str(__interpreter__.visit(SubroutineCall(self.properties["REPR"], [])))
+        return self.__str__()
+
+class ClassInstance(Object):
+    def __init__(self, base: ClassDefinition):
+        super().__init__(None)
+        self.base = base
+        self.properties = deepcopy(base.properties)
+    
+    def __str__(self):
+        if "STR" in self.properties:
+            return str(__interpreter__.visit(SubroutineCall(self.properties["STR"], [])))
+        return f"<class instance {self.base.token.value}>"
+    
+    def __repr__(self):
+        if "REPR" in self.properties:
+            return str(__interpreter__.visit(SubroutineCall(self.properties["REPR"], [])))
+        return self.__str__()
 
 class BuiltinModule(Object):
     def __init__(self, *args, **kwargs):
@@ -441,6 +497,10 @@ class Parser:
             return self.record_definition()
         elif self.current_token.type == TokenType.TRY:
             return self.try_catch()
+        elif self.current_token.type == TokenType.SUBROUTINE:
+            return self.subroutine()
+        elif self.current_token.type == TokenType.CLASS:
+            return self.class_definition()
         else:
             node = self.empty()
         return node
@@ -630,7 +690,7 @@ class Parser:
 
     
     def subroutine(self):
-        self.eat(TokenType.KEYWORD)
+        self.eat(TokenType.SUBROUTINE)
         token = self.current_token
         self.eat(TokenType.ID)
         self.eat(TokenType.LPAREN)
@@ -659,8 +719,7 @@ class Parser:
 
     def process_keyword(self):
         token = self.current_token
-        if token.value == "SUBROUTINE":
-            node = self.subroutine()
+        if False: pass
         else:
             node = self.empty()
         return node
@@ -794,6 +853,25 @@ class Parser:
         self.eat(TokenType.KEYWORD)
 
         return TryCatch(try_compound, catch_compound)
+    
+    def class_definition(self):
+        self.eat(TokenType.CLASS)
+        variable = self.variable()
+        static_values = []
+        subroutines = []
+        self.eat_gap()
+        while self.current_token.type in (TokenType.SUBROUTINE, TokenType.ID):
+            self.eat_gap()
+            if self.current_token.type == TokenType.SUBROUTINE:
+                subroutines.append(self.subroutine())
+            elif self.current_token.type == TokenType.ID:
+                v = self.variable()
+                static_values.append(self.assignment_statement(v))
+            self.eat_gap()
+        self.eat_gap()
+        self.eat(TokenType.KEYWORD)
+
+        return Assign(variable, None, ClassDefinition(variable, static_values, subroutines))
 
     def parse(self):
         node = self.program()
@@ -837,7 +915,7 @@ class _BUILTINS(BuiltinModule):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.properties = {
-            "USERINPUT":      self.USERINPUT, 
+            "INPUT":          self.INPUT, 
             "LEN":            self.LEN, 
             "POSITION":       self.POSITION, 
             "SUBSTRING":      self.SUBSTRING, 
@@ -851,7 +929,7 @@ class _BUILTINS(BuiltinModule):
             "SQRT":           self.SQRT,
         }
     
-    def USERINPUT(self, *args):
+    def INPUT(self, *args):
         return Object.create(input(args[0].value if len(args) > 0 else ""))
     
     def LEN(self, *args):
@@ -911,11 +989,14 @@ class _BUILTINS(BuiltinModule):
 
 class Interpreter(NodeVisitor):
     def __init__(self, parser: Parser):
+        global __interpreter__
         self.parser = parser
         self.current_scope = None
         self.RETURN = False
         self.CONTINUE = False
         self.BREAK = False
+
+        __interpreter__ = self # hacky solution to allwoing object to access the interpreter
     
     def visit_BinOp(self, node: BinOp):
         if node.op.type == TokenType.ADD:
@@ -1043,8 +1124,10 @@ class Interpreter(NodeVisitor):
     
     def visit_Magic(self, node):
         if node.token.value == "OUTPUT":
-            values = [self.visit(n).value for n in node.parameters]
+            values = [str(self.visit(n)) for n in node.parameters]
             print(*values)
+        elif node.token.value == "USERINPUT":
+            return Object.create(input())
         elif node.token.value == "RETURN":
             values = [self.visit(n) for n in node.parameters]
             self.RETURN_VALUE = values[0] if len(values) > 0 else None
@@ -1056,6 +1139,7 @@ class Interpreter(NodeVisitor):
 
     def visit_Subroutine(self, node):
         self.current_scope.insert(node.token, node)
+        return node
         #print(f"{node.token.value}({', '.join([n.variable.value for n in node.parameters])})")
         #for c in node.children:
         #    print("  ", c)
@@ -1080,9 +1164,12 @@ class Interpreter(NodeVisitor):
             return self.create_RecordObject(node, function)
         
         elif isinstance(function, Subroutine):
+            #node.subroutine_token.value
+            function_scope = VariableScope("function_scope", self.current_scope)
             
-            function_scope = VariableScope(node.subroutine_token.value, self.current_scope)
-
+            if function.classBase:
+                function_scope.insert(Var(Token("this", TokenType.ID)), function.classBase)
+            
             #print(function)
             if len(function.parameters) != len(node.parameters):
                 raise InterpreterError("mismatched function parameters")
@@ -1099,8 +1186,18 @@ class Interpreter(NodeVisitor):
             result = self.RETURN_VALUE
             self.RETURN_VALUE = None
             self.current_scope = self.current_scope.enclosing_scope
+
+            #print(function_scope._variables)
             return result
         
+        elif isinstance(function, ClassDefinition):
+            cls = function
+            # need a variable pointing to the init function, this doesn't work
+            tok = deepcopy(node.subroutine_token)
+            tok.array_indexes.append(Object.create("INIT"))
+            temp = SubroutineCall(tok, node.parameters)
+            #print("creating class instance...")
+            return self.create_ClassInstance(temp, cls)
         else:
             parameters = [self.visit(p.value) for p in node.parameters]
             return function(*parameters)
@@ -1168,6 +1265,29 @@ class Interpreter(NodeVisitor):
             self.visit(node.try_compound)
         except:
             self.visit(node.catch_compound)
+    
+    def visit_ClassDefinition(self, node: ClassDefinition):
+        self.current_scope.insert(node.token, node)
+        for v in node.static_values:
+            node.properties[v.left.value] = self.visit(v.right)
+        for f in node.subroutines:
+            f.classBase = node
+            node.properties[f.token.value] = f
+        #print(node.properties)
+        return node
+    
+    def create_ClassInstance(self, node: SubroutineCall, base: ClassDefinition):
+        class_instance = ClassInstance(base=base)
+        for name, func in class_instance.properties.items():
+            if isinstance(func, Subroutine):
+                func.classBase = class_instance
+
+        initialise_function = class_instance.properties.get("INIT")
+        if initialise_function:
+            node.subroutine_token = initialise_function
+            self.visit(node)
+
+        return class_instance
     
     def interpret(self):
         tree = self.parser.parse()

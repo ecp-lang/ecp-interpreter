@@ -5,8 +5,8 @@ from parse import *
 completed = 0
 total = 0
 failed = 0
-
-for (dirpath, dirnames, filenames) in os.walk("..\\examples"):
+print(os.getcwd())
+for (dirpath, dirnames, filenames) in os.walk("../examples"):
     total = len(filenames)
     for f in filenames:
         print(f"[#] Testing {f}...")
@@ -29,3 +29,5 @@ for (dirpath, dirnames, filenames) in os.walk("..\\examples"):
 print(f"Complete.")
 print(f"Success: {total-failed}/{total}")
 print(f"Failed: {failed}/{total}")
+if failed > 0:
+    raise Exception("Some examples failed.")
