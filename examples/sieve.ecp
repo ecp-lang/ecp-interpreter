@@ -1,32 +1,22 @@
-# https://stackoverflow.com/a/20924623
-# def eratosthenes(n):
-#     multiples = []
-#     for i in range(2, n+1):
-#         if i not in multiples:
-#             print(i)
-#             for j in range(i*i, n+1, i):
-#                 multiples.append(j)
-# 
-# eratosthenes(100)
+SUBROUTINE eratosthenes(n)
+    bits := []
+    FOR i := 1 TO n
+        bits.append(True)
+    ENDFOR
 
-SUBROUTINE contains(l: Array, item)
-    FOR element IN l
-        IF item = element THEN
-            RETURN True
+    lim := Int(SQRT(n))
+    FOR index := 1 TO lim
+        IF bits[index-1] THEN
+            # index+1 is a prime number, eliminate it's factors
+            FOR i := 2 * (index+1) TO n STEP index+1
+                bits[i-1] := False
+            ENDFOR
         ENDIF
     ENDFOR
 
-    RETURN False
-ENDSUBROUTINE
-
-SUBROUTINE eratosthenes(n)
-    multiples := []
-    FOR i := 2 TO n
-        IF NOT contains(multiples, i) THEN
-            OUTPUT i
-            FOR j := i*i TO n STEP i
-                multiples.append(j)
-            ENDFOR
+    FOR i := 1 TO n-1
+        IF bits[i] = True THEN
+            OUTPUT i+1
         ENDIF
     ENDFOR
 ENDSUBROUTINE

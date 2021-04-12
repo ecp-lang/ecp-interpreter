@@ -1077,13 +1077,14 @@ class Interpreter(NodeVisitor):
     
     def set_element(self, L, index, value):
         # function for recersively changing a object property
+        target = self.visit(index[0])
         if len(index) < 2:
-            if isinstance(index[0].value, int):
-                L[index[0]] = value
+            if isinstance(target.value, int):
+                L[target] = value
             else:
-                L[index[0]] = value
+                L[target] = value
         else:
-            L[index[0]] = self.set_element(L[index[0]], index[1:], value)
+            L[target] = self.set_element(L[target], index[1:], value)
         return L
     
     def visit_Assign(self, node):
