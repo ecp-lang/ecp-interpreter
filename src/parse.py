@@ -88,8 +88,8 @@ NOTE:
 The priority for math operations is as follows:
     - HIGHEST PRECEDENCE -
     factor :  (this can be seen as the final stage, where brackets are prcoessed etc)
-    term   :  pow, mod
-    term2  :  mul, div, int_div
+    term   :  pow     (right-associative operator)
+    term2  :  mul, div, int_div, mod
     term3  :  add, sub
     term4  :  lt, le, eq, ne, gt, ge
     term5  :  and, or
@@ -361,7 +361,17 @@ Object.types = {
         
 
 class ParseError(Exception):
-    pass
+    def __init__(self, msg, lineno, column, lineText=""):
+        self.msg = msg
+        self.lineno = lineno
+        self.column = column
+        self.lineText = lineText
+    
+    def __str__(self):
+        ret = f"\n  Line {self.lineno}:\n"
+        if self.lineText:
+            ret += f"  {self.lineText}\n  {' '*(self.column-1)}^\n"
+        return ret + f"{self.msg}"
 
 class InterpreterError(Exception):
     pass
@@ -414,10 +424,13 @@ class Parser:
         self.lexer = lexer
         self.token_num = 0
     
+    def EOF(self):
+        return Token("", TokenType.EOF, len(self.lexer.lines)-1, len(self.lexer.lines[-2])+1)
+    
     def get_next_token(self):
         self.token_num += 1
         if self.token_num >= len(self.lexer.tokens):
-            return Token(None, TokenType.EOF)
+            return self.EOF()
         return self.lexer.tokens[self.token_num]
     
     
@@ -425,7 +438,11 @@ class Parser:
         if self.current_token.type == token_type:
             self.get_next_token()
         else:
-            raise ParseError(f"Unexpected token: {self.current_token}")
+            raise ParseError(
+                f"Expected {token_type} but found {self.current_token.error_format()}",
+                *self.current_token.pos,
+                lineText=self.lexer.lines[self.current_token.lineno-1]
+            )
 
     def eat_gap(self):
         while self.current_token.type in (TokenType.NEWLINE,):
@@ -435,17 +452,21 @@ class Parser:
     @property
     def current_token(self):
         if self.token_num >= len(self.lexer.tokens):
-            return Token(None, TokenType.EOF)
+            return self.EOF()
         return self.lexer.tokens[self.token_num]
     
     @property
     def next_token(self):
         if self.token_num + 1 >= len(self.lexer.tokens):
-            return Token(None, TokenType.EOF)
+            return self.EOF()
         return self.lexer.tokens[self.token_num + 1]
     
     def error(self):
-        raise ParseError(self.current_token)
+        raise ParseError(
+            f"Unexpected token {self.current_token.error_format()}", 
+            *self.current_token.pos,
+            lineText=self.lexer.lines[self.current_token.lineno-1]
+        )
 
     def program(self):
         
@@ -459,13 +480,19 @@ class Parser:
         return node
     
     def statement_list(self):
-        node = self.statement()
-
-        results = [node]
+        results = []
+        self.eat_gap()
+        if self.current_token.type != TokenType.NEWLINE:
+            node = self.statement()
+            if node:
+                results.append(node)
+            
 
         while self.current_token.type == TokenType.NEWLINE:
-            self.eat(TokenType.NEWLINE)
-            results.append(self.statement())
+            self.eat_gap()
+            node = self.statement()
+            if node:
+                results.append(node)
 
         if self.current_token.type == TokenType.ID:
             self.error()
@@ -481,8 +508,6 @@ class Parser:
                 node = self.assignment_statement(var)
         elif self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
-        elif self.current_token.type == TokenType.KEYWORD:
-            node = self.process_keyword()
         elif self.current_token.type == TokenType.IF:
             node = self.if_statement()
             self.eat(TokenType.KEYWORD)
@@ -502,7 +527,8 @@ class Parser:
         elif self.current_token.type == TokenType.CLASS:
             return self.class_definition()
         else:
-            node = self.empty()
+            #node = self.empty()
+            return
         return node
     
     def assignment_statement(self, var):
@@ -590,11 +616,11 @@ class Parser:
     def term(self):
         node = self.factor()
 
-        while self.current_token.type in (TokenType.POW, TokenType.MOD):
+        if self.current_token.type in (TokenType.POW, ):
             token = self.current_token
             self.eat(token.type)
         
-            node = BinOp(left=node, op=token, right=self.factor())
+            node = BinOp(left=node, op=token, right=self.term())
         
         return node
     
@@ -602,7 +628,7 @@ class Parser:
         
         node = self.term()
 
-        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV):
+        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV, TokenType.MOD):
             token = self.current_token
             self.eat(token.type)
         
@@ -871,7 +897,7 @@ class Parser:
         self.eat_gap()
         self.eat(TokenType.KEYWORD)
 
-        return Assign(variable, None, ClassDefinition(variable, static_values, subroutines))
+        return ClassDefinition(variable, static_values, subroutines)
 
     def parse(self):
         node = self.program()
@@ -888,6 +914,8 @@ class VariableScope(object):
         self._variables = {}
     
     def insert(self, var, value):
+        if __interpreter__.tracer:
+            __interpreter__.tracer.onchange(var.value, value)
         self._variables[var.value] = value
     
     def get(self, var):
@@ -899,7 +927,7 @@ class VariableScope(object):
             while self.enclosing_scope != None:
                 return self.enclosing_scope.get(var)
         
-        raise NameError(f"{var.value} does not exist")
+        raise InterpreterError(f"variable {var.value} does not exist")
 
 class NodeVisitor(object):
     def visit(self, node):
@@ -988,13 +1016,14 @@ class _BUILTINS(BuiltinModule):
 
 
 class Interpreter(NodeVisitor):
-    def __init__(self, parser: Parser):
+    def __init__(self, parser: Parser, tracer=None):
         global __interpreter__
         self.parser = parser
         self.current_scope = None
         self.RETURN = False
         self.CONTINUE = False
         self.BREAK = False
+        self.tracer = tracer
 
         __interpreter__ = self # hacky solution to allwoing object to access the interpreter
     
@@ -1174,9 +1203,9 @@ class Interpreter(NodeVisitor):
             #print(function)
             if len(function.parameters) != len(node.parameters):
                 raise InterpreterError("mismatched function parameters")
-            for c, p in enumerate(function.parameters):
+            for param_definition, parameter in zip(function.parameters, node.parameters):
                 #print(self.visit(node.parameters[c].value))
-                function_scope.insert(p.variable, self.visit(node.parameters[c].value))
+                function_scope.insert(param_definition.variable, self.visit(parameter.value))
 
             self.current_scope = function_scope
             # execute function

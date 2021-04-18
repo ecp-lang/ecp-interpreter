@@ -1,0 +1,12 @@
+SUBROUTINE f(n)
+    b := 1
+ENDSUBROUTINE
+
+c := [1, (1+1)]
+
+f(1)
+
+RECORD rec
+    a : Int
+    b : Int
+ENDRECORD
