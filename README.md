@@ -44,6 +44,7 @@ optional arguments:
   --pause               pause on completion
   --version             show program's version number and exit
 ```
+A live version of the interpreter can be found at http://conqu3red.pythonanywhere.com/
 
 # Installation
 ## Using the installer
