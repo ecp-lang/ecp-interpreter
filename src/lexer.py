@@ -72,7 +72,7 @@ class TokenType(Enum):
     RECORD = "RECORD"
 
 class Token:
-    def __init__(self, value, type, lineno=None, column=None):
+    def __init__(self, value, type, lineno=0, column=0):
         self.value = value
         self.type = type
         self.lineno = lineno
@@ -83,16 +83,23 @@ class Token:
     
     def __repr__(self):
         return self.__str__()
+    
+    def error_format(self):
+        return f"'{self.value}' ({self.type})"
+    
+    @property
+    def pos(self):
+        return self.lineno, self.column
 
 symbols = { # single char symbols
-    "←":  TokenType.ASSIGN,
+    "\u2190":  TokenType.ASSIGN,
     ":=": TokenType.ASSIGN,
     "=":  TokenType.EQ,
     
     "+":  TokenType.ADD,
     "*":  TokenType.MUL,
     "-":  TokenType.SUB,
-    "–":  TokenType.SUB,
+    "\u2013":  TokenType.SUB,
     "DIV": TokenType.INT_DIV,
     "MOD": TokenType.MOD,
     "/":  TokenType.DIV,
@@ -104,9 +111,9 @@ symbols = { # single char symbols
     ">=": TokenType.GE,
     "<":  TokenType.LT,
     ">":  TokenType.GT,
-    "≠":  TokenType.NE,
-    "≤":  TokenType.LE,
-    "≥":  TokenType.GE,
+    "\u2260":  TokenType.NE,
+    "\u2264":  TokenType.LE,
+    "\u2265":  TokenType.GE,
     "NOT": TokenType.NOT,
     "OR": TokenType.OR,
     "AND": TokenType.AND,
@@ -181,14 +188,15 @@ types = {
 
 
 
-KEYWORDS = {**symbols, **other_symbols, **keywords, **types, **{val: TokenType.BUILTIN_FUNCTION for val in builtin_functions}}
+KEYWORDS = {**symbols, **other_symbols, **keywords}
 
 class Lexer:
     def __init__(self):
         self.tokens: List[Token] = []
         self.lexme = ""
-        self.lineno = 0
+        self.lineno = 1
         self.column = 0
+        self.lines = []
     
     def addToken(self, value, token_type, reset=True):
         token = Token(
@@ -217,6 +225,8 @@ class Lexer:
         ID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
         tok = list(TokenType)
         key_tokens = tok[tok.index(TokenType.ID):tok.index(TokenType.RECORD)+1]
+
+        self.lines = string.split("\n")
         
 
         for i,char in enumerate(string):

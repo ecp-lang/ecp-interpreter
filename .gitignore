@@ -10,3 +10,5 @@ win-src/*.py
 *.exe
 executables/ecp
 *.zip
+*.dot
+*.png

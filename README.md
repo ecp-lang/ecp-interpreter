@@ -25,6 +25,27 @@ Magic snippets are built-in functions, classes and libraries that can run interp
 
 We're designing the language to be more like a set of rules than a specific piece of software, although the software bundled in this repo is supported by us. It can be interpreted, compiled, based off C, based, off python, and more, if you can write the software to run it. That's why "interpreter code" is used, for future proofing and cross compatibility.
 
+# Usage
+## Command Line arguments
+```
+usage: ecp.py [-h] [--debug] [--trace [TRACE [TRACE ...]]] [--tracecompact] [--pause] [--version] [inputfile]
+
+ECP interpreter
+
+positional arguments:
+  inputfile
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --debug               show debug information like token list
+  --trace [TRACE [TRACE ...]]
+                        space seperated names of the variables to be traced
+  --tracecompact        trace compactly
+  --pause               pause on completion
+  --version             show program's version number and exit
+```
+A live version of the interpreter can be found at http://conqu3red.pythonanywhere.com/
+
 # Installation
 ## Using the installer
 Go the the [latest release](https://github.com/Conqu3red/pseudocode-interpreter/releases/latest) and download `ECPSetup.exe`, this is the installer which will install the ECP interpreter. The installer will setup the association with the ecp file type so that you can just double click on ecp files to run them.
