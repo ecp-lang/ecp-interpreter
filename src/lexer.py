@@ -72,9 +72,9 @@ class TokenType(Enum):
     RECORD = "RECORD"
 
 class Token:
-    def __init__(self, value, type, lineno=0, column=0):
+    def __init__(self, value, _type, lineno=0, column=0):
         self.value = value
-        self.type = type
+        self.type = _type
         self.lineno = lineno
         self.column = column
     
@@ -193,110 +193,158 @@ KEYWORDS = {**symbols, **other_symbols, **keywords}
 class Lexer:
     def __init__(self):
         self.tokens: List[Token] = []
-        self.lexme = ""
+        self.whitespaceChars = " \t\r"
+
+        self.IdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+        self.startIdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+        self.numChars = "0123456789."
+        self.escapeChars = {
+            "n": "\n",
+            "t": "\t",
+            "\"": "\"",
+            "'": "'"
+        }
+
+        self.init()
+    
+    def init(self):
         self.lineno = 1
         self.column = 0
+        self.curPos = 0
+        self.source = ""
         self.lines = []
-    
-    def addToken(self, value, token_type, reset=True):
-        token = Token(
-            value = value,
-            type = token_type,
-            lineno = self.lineno,
-            column = self.column
-        )
-        self.tokens.append(token)
-
-        if reset:
-            self.lexme = ""
-
-    def lexString(self, string: str):
-        if not string.endswith("\n"):
-            string += "\n"
         self.tokens = []
-        white_space = " \t"
-        escape_character = "\\"
-        self.lexme = ""
-        is_string = False
-        is_number = False
-        prev_char = ""
-        beginning_quote = ""
-        single_line_comment = False
-        ID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-        tok = list(TokenType)
-        key_tokens = tok[tok.index(TokenType.ID):tok.index(TokenType.RECORD)+1]
+    
+    def Token(self, value, tokenType):
+        token = Token(
+            value, tokenType,
+            lineno=self.lineno, column=self.column
+        )
+        return token
+    
+    @property
+    def reachedEnd(self):
+        return self.curPos >= len(self.source)
 
-        self.lines = string.split("\n")
+    @property
+    def curChar(self):
+        if self.curPos < len(self.source):
+            return self.source[self.curPos]
+        else:
+            return "\0" # EOF
+    
+    def ReachedEndError(self):
+        raise Exception("Unexpected end of string")
+
+    def advance(self):
+        self.curPos += 1
+        self.column += 1
+    
+    def peek(self):
+        if self.curPos + 1 >= len(self.source):
+            return "\0"
+        return self.source[self.curPos+1]
+    
+    def skipWhitespace(self):
+        while self.curChar in self.whitespaceChars:
+            self.advance()
+    
+    def skipComment(self):
+        if self.curChar == "#":
+            while self.curChar not in "\0\n":
+                self.advance()
+    
+    def id(self):
+        s = ""
+        while self.curChar in self.IdChars:
+            s += self.curChar
+            self.advance()
+
+        if s in KEYWORDS.keys():
+            return self.Token(s, KEYWORDS[s])
+        else:
+            return self.Token(s, TokenType.ID)
+
+    def number(self):
+        s = ""
+        while self.curChar in self.numChars:
+            s += self.curChar
+            self.advance()
+        
+        try:
+            if "." in s:
+                float(s)
+                return self.Token(s, TokenType.FLOAT)
+            else:
+                int(s)
+                return self.Token(s, TokenType.INT)
+        except ValueError:
+            return self.Token(s, TokenType.INVALID)
+
+    def op(self):
+        s = ""
+        while self.curChar not in self.whitespaceChars + "\0":
+            s += self.curChar
+            self.advance()
+
+            if s in KEYWORDS.keys() and self.curChar not in ("=", "*"):
+                break
+
+        if s in KEYWORDS.keys():
+            return self.Token(s, KEYWORDS[s])
+        else:
+            return self.Token(s, TokenType.INVALID)
+
+    def _string(self):
+        s = ""
+        start = self.curChar
+        self.advance()
+        while self.curChar != start:
+            if self.curChar == "\\":
+                self.advance()
+                if self.curChar in self.escapeChars.keys():
+                    s += self.escapeChars[self.curChar]
+                else:
+                    s += self.curChar
+                self.advance()
+            else:
+                s += self.curChar
+                self.advance()
+            
+            if self.reachedEnd:
+                self.ReachedEndError()
+        
+        self.advance()
+        
+        return self.Token(s, TokenType.STRING)
+
+    
+    def getToken(self):
+        if self.curChar == "\n":
+            self.advance()
+            return Token("\n", TokenType.NEWLINE)
+        elif self.curChar in self.startIdChars: # ID
+            return self.id()
+        elif self.curChar in self.numChars and self.curChar != ".":
+            return self.number()
+        elif self.curChar in "\"'":
+            return self._string()
+        elif self.curChar == "\0":
+            return self.Token("<EOF>", TokenType.EOF)
+        else:
+            return self.op()
         
 
-        for i,char in enumerate(string):
-            self.column += 1
-            if char == "\n":
-                self.lineno += 1
-                self.column = 0
-                single_line_comment = False
-            if ((char not in white_space) or is_string) and not (char == escape_character and prev_char != escape_character):
-                self.lexme += char # adding a char each time
-            if char == "#" and prev_char != escape_character:
-                single_line_comment = True
-            if (i+1 < len(string)): # prevents error
-                if single_line_comment:
-                    self.lexme = ""
-                    continue
-                # Int and Real (float) processing
-                if not is_string and char.isdigit() and not is_number and len(self.lexme) < 2:
-                    is_number = True
-                
-                # string processing
-                if char in QUOTE_CHARS and prev_char != escape_character:
-                    if is_string and char == beginning_quote:
-                        self.lexme = self.lexme[:-1]
-                        is_string = False
-                        if not is_string:
-                            self.addToken(self.lexme, TokenType.STRING)
-                    else:
-                        self.lexme = self.lexme[:-1]
-                        is_string = True
-                        beginning_quote = char
-                    #print(char, beginning_quote, is_string)
-                if ((string[i+1] not in ID_CHARS) or (string[i+1] in white_space) or (string[i+1] in KEYWORDS.keys()) or (self.lexme in KEYWORDS.keys())) and not is_string: # if next char == ' '
-                    if self.lexme != "":
-                        if is_number:
-                            try:
-                                if self.lexme.count(".") == 1:
-                                    self.addToken(
-                                        float(self.lexme),
-                                        TokenType.FLOAT,
-                                    )
-                                else:
-                                    if string[i+1] in (".",):
-                                        continue
-                                    self.addToken(
-                                        int(self.lexme),
-                                        TokenType.INT,
-                                    )
-                            except ValueError:
-                                self.addToken(
-                                    self.lexme,
-                                    TokenType.INVALID,
-                                )
-                        else:
-                            if self.lexme in ("True", "False"):
-                                self.addToken(
-                                    True if self.lexme == "True" else False,
-                                    KEYWORDS.get(self.lexme, TokenType.ID),
-                                )
-                            else:
-                                if string[i+1] in ("=", "*") and char not in ID_CHARS: # multi length
-                                    continue
-                                token_type = KEYWORDS.get(self.lexme, TokenType.ID)
-                                if token_type in key_tokens and string[i+1] in ID_CHARS:
-                                    continue
-                                self.addToken(
-                                    self.lexme,
-                                    token_type,
-                                )
-                        is_number = False
-            prev_char = char
-
+    def lexString(self, source):
+        self.init()
+        self.source = source
+        self.lines = source.split("\n")
+        end = False
+        while not end:
+            self.skipWhitespace()
+            self.skipComment()
+            token = self.getToken()
+            self.tokens.append(token)
+            if token.type == TokenType.EOF:
+                end = True
         return self.tokens

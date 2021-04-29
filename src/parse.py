@@ -358,6 +358,13 @@ Object.types = {
     "Array":   ArrayObject,
 }
 
+TokenConversions = {
+    TokenType.INT: int,
+    TokenType.FLOAT: float,
+    TokenType.BOOLEAN: bool,
+    TokenType.STRING: str
+}
+
         
 
 class ParseError(Exception):
@@ -592,7 +599,7 @@ class Parser:
             return node
         elif token.type in (TokenType.INT, TokenType.FLOAT, TokenType.BOOLEAN, TokenType.STRING):
             self.eat(token.type)
-            return Object.create(token.value)
+            return Object.create(TokenConversions[token.type](token.value))
         
         elif token.type == TokenType.LPAREN:
             self.eat(TokenType.LPAREN)
