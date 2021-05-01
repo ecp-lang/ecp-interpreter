@@ -12,3 +12,5 @@ executables/ecp
 *.zip
 *.dot
 *.png
+bin
+obj
