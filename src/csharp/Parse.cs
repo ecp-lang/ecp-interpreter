@@ -9,6 +9,10 @@ namespace Ecp
         public virtual string Repr(){
             return "<ast node>";
         }
+        public AST ShallowCopy()
+        {
+           return (AST) this.MemberwiseClone();
+        }
     }
     
     class BinOp : AST {
@@ -37,9 +41,10 @@ namespace Ecp
     }
 
     class Assign : AST {
-        public AST left, right;
+        public Var left;
+        public AST right;
         public Token op, token;
-        public Assign(AST left, Token op, AST right){
+        public Assign(Var left, Token op, AST right){
             this.left = left;
             this.token = this.op = op;
             this.right = right;
@@ -47,12 +52,12 @@ namespace Ecp
     }
     class Var : AST {
         public Token token;
-        public object value;
-        public List<object> array_indexes;
+        public string name;
+        public List<AST> array_indexes;
         public Var(Token token){
             this.token = token;
-            this.value = token.value;
-            array_indexes = new List<object>{};
+            this.name = token.value;
+            array_indexes = new List<AST>{};
         }
     }
 
@@ -81,18 +86,28 @@ namespace Ecp
         }
     }
 
-    class Subroutine : AST {
-        public Token token;
+    class Subroutine : Object {
+        public Var token;
         public List<DeclaredParam> parameters;
         public Compound compound;
         public bool builtin;
-        public object classBase; // NOTE: ClassObject not done yet!
-        public Subroutine(Token token, List<DeclaredParam> parameters, Compound compound){
+        public AST classBase; // NOTE: ClassObject not done yet!
+        public Subroutine(Var token, List<DeclaredParam> parameters, Compound compound){
             this.token = token;
             this.parameters = parameters;
             this.compound = compound;
             this.builtin = false;
             this.classBase = null;
+        }
+        
+        public override string ToString()
+        {
+            return $"<subroutine {token.name}>";
+        }
+
+        public override string Repr()
+        {
+            return ToString();
         }
     }
 
@@ -102,6 +117,13 @@ namespace Ecp
         public SubroutineCall(Var subroutine_token, List<Param> parameters){
             this.subroutine_token = subroutine_token;
             this.parameters = parameters;
+        }
+    }
+
+    class BuiltinSubroutine : Object {
+        public MethodInfo methodInfo;
+        public BuiltinSubroutine(MethodInfo methodInfo){
+            this.methodInfo = methodInfo;
         }
     }
 
@@ -150,13 +172,17 @@ namespace Ecp
                 case "System.Single":
                 case "System.Double":
                     return new FloatObject(value);
-                case "Sytem.Boolean":
+                case "System.Boolean":
                     return new BoolObject(value);
                 case "System.String":
+                case "System.Char":
                     return new StringObject(value);
                 case "System.Collections.Generic.List`1[System.Object]":
-                    return new ArrayObject(value);
+                    var arr = new ArrayObject(new List<object>{});
+                    arr.value = value;
+                    return arr;
             }
+            Console.WriteLine($"Failed; {value.GetType()}");
             return new Object(value);
         }
 
@@ -188,20 +214,24 @@ namespace Ecp
         public object this[object index]
         {
             get {
+                object ret;
                 if (index is Object) index = ((Object)index).value;
-                if (index is int) return this.value[(int)index];
-                return this.value[(string)index];
+                if (index is int || index is long) ret = this.value[Convert.ToInt32(index)];
+                else ret =  this.properties[Convert.ToString(index)];
+
+                return ret;
             }
             set {
+                //Console.WriteLine($"set {index} {index.GetType()} {this} {this.value.GetType()}");
                 if (index is Object) index = ((Object)index).value;
-                if (index is int) this.value[(int)index] = value;
-                if (index is string) this.value[(string)index] = value;
+                if (index is int || index is long){ this.value[Convert.ToInt32(index)] = (AST)value; }
+                if (index is string){ this.properties[Convert.ToString(index)] = (AST)value; }
             }
         }
 
         public override string ToString()
         {
-            return this.value.ToString();
+            return Convert.ToString(this.value);
         }
 
         public override string Repr(){
@@ -238,24 +268,24 @@ namespace Ecp
     }
 
     class ArrayObject : Object {
-        public ArrayObject(object value) : base() {
-            initialize(convert<List<object>>(value));
+        public ArrayObject(List<object> value) : base() {
+            initialize(value);
             this.properties = new Dictionary<object, object>{
-                {"append", "append"}
+                {"append", new BuiltinSubroutine(this.GetType().GetMethod("append"))}
             };
         }
 
         public override string ToString()
         {
             List<string> reprs = new List<string>{};
-            foreach (Object element in value){
+            foreach (AST element in value){
                 reprs.Add(Interpreter.__interpreter__.visit(element).Repr());
             }
-            return string.Join(", ", reprs);
+            return $"[{string.Join(", ", reprs)}]";
             //return "[{', '.join([repr(__interpreter__.visit(i)) for i in this.value])}]";
         }
 
-        public void append(object _object){
+        public void append(AST _object){
             this.value.Add(_object);
         }
     }
@@ -269,7 +299,7 @@ namespace Ecp
         }
         public override string ToString()
         {
-            return $"<record definition {token.value}>";
+            return $"<record definition {token.name}>";
         }
     }
 
@@ -281,7 +311,7 @@ namespace Ecp
         }
         public override string ToString()
         {
-            return $"<record object {baseRecord.token.value}>";
+            return $"<record object {baseRecord.token.name}>";
         }
     }
 
@@ -302,15 +332,15 @@ namespace Ecp
         public override string ToString()
         {
             if (properties.Keys.Contains("STR")){
-                return Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["STR"], new List<Param>{})).ToString();
+                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["STR"], new List<Param>{})));
             }
-            return $"<class definition {token.value}>";
+            return $"<class definition {token.name}>";
         }
 
         public override string Repr()
         {
             if (properties.Keys.Contains("REPR")){
-                return Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["REPR"], new List<Param>{})).ToString();
+                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["REPR"], new List<Param>{})));
             }
             return ToString();
         }
@@ -326,28 +356,32 @@ namespace Ecp
         public override string ToString()
         {
             if (properties.Keys.Contains("STR")){
-                return Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["STR"], new List<Param>{})).ToString();
+                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["STR"], new List<Param>{})));
             }
-            return $"<class instance {baseClass.token.value}>";
+            return $"<class instance {baseClass.token.name}>";
         }
 
         public override string Repr()
         {
             if (properties.Keys.Contains("REPR")){
-                return Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["REPR"], new List<Param>{})).ToString();
+                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["REPR"], new List<Param>{})));
             }
             return ToString();
         }
     }
 
     class BuiltinModule : Object {
-        
+        public void registerFunctions(Type T, List<string> functions){
+            foreach (string f in functions){
+                this.properties[f] = new BuiltinSubroutine(T.GetMethod(f));
+            }
+        }
     }
 
     class _math : BuiltinModule {
         public _math(){
             this.properties = new Dictionary<object, object>{
-                {"sqrt", "sqrt"}
+                {"sqrt", new BuiltinSubroutine(this.GetType().GetMethod("sqrt"))}
             };
         }
         public Object sqrt(Object v){
@@ -758,8 +792,7 @@ namespace Ecp
 
         public Subroutine subroutine(){
             eat(TokenType.SUBROUTINE);
-            Token token = current_token;
-            eat(TokenType.ID);
+            Var v = variable();
             eat(TokenType.LPAREN);
             List<DeclaredParam> parameters = new List<DeclaredParam>{};
             if (current_token.type != TokenType.RPAREN){
@@ -772,7 +805,7 @@ namespace Ecp
             eat(TokenType.RPAREN);
             Compound _compound = compound();
             eat(TokenType.KEYWORD);
-            return new Subroutine(token, parameters, _compound);
+            return new Subroutine(v, parameters, _compound);
         }
 
         public SubroutineCall subroutine_call(Var v){
@@ -867,7 +900,9 @@ namespace Ecp
             }
             eat_gap();
             //print(values)
-            return new ArrayObject(values);
+            var obj = new ArrayObject(new List<object>{});
+            obj.value = values;
+            return obj;
         }
 
         public ForLoop for_loop(){
@@ -960,15 +995,530 @@ namespace Ecp
 
     }
 
-    class Interpreter {
+    class VariableScope {
+        public string name;
+        public VariableScope enclosing_scope;
+        public Dictionary<string, AST> _variables;
+        public VariableScope(string name, VariableScope enclosing_scope){
+            this.name = name;
+            this.enclosing_scope = enclosing_scope;
+            _variables = new Dictionary<string, AST>{};
+        }
+        
+        public void insert(Var v, AST value){
+            if (Interpreter.__interpreter__.tracer != null) Interpreter.__interpreter__.tracer.onchange(v.name, value);
+            _variables[v.name] = value;
+        }
+        
+        public AST get(Var v){
+            if (_variables.TryGetValue(v.name, out AST value)) return value;
+            while (enclosing_scope != null){
+                return enclosing_scope.get(v);
+            }
+            
+            throw new Exception($"variable '{v.name}' does not exist");
+        }
+    }
+
+    class NodeVisitor {
+        public Object visit(AST node){
+            string method_name = "visit_" + node.GetType().Name;
+            var func = this.GetType().GetMethod(
+                method_name, 
+                0,
+                new Type[]{ typeof(AST) }
+            );
+            if (func == null){
+                generic_visit(node);
+            }
+            return (Object)func.Invoke(this, new object[]{ node });
+        }
+
+        public void generic_visit(AST node){
+            throw new Exception($"No visit_{node.GetType().Name} method");
+        }
+    }
+
+    class _BUILTINS : BuiltinModule {
+        public static _BUILTINS instance;
+        public _BUILTINS(){
+            instance = this;
+            this.properties = new Dictionary<object, object>{
+                {"SQRT", new BuiltinSubroutine(this.GetType().GetMethod("SQRT"))},
+                {"Int", new BuiltinSubroutine(this.GetType().GetMethod("Int"))}
+
+            };
+            /*registerFunctions(
+                this.GetType(),
+                new List<string>{
+                    //"INPUT",
+                    //"LEN",
+                    //"POSITION",
+                    //"SUBSTRING",
+                    //"STRING_TO_INT",
+                    //"STRING_TO_REAL",
+                    //"INT_TO_STRING",
+                    //"REAL_TO_STRING",
+                    //"CHAR_TO_CODE",
+                    //"CODE_TO_CHAR",
+                    //"RANDOM_INT",
+                    //"SQRT",
+                    "Int"//,
+                    //"String"
+                }
+            );*/
+        }
+        public Object SQRT(Object v){
+            return Object.create(Math.Sqrt(v.value));
+        }
+
+        public Object Int(Object value){
+            return new IntObject(value.value);
+        }
+    }
+
+    class Interpreter : NodeVisitor {
         public static Interpreter __interpreter__;
+        public Parser parser;
+        public VariableScope current_scope;
+        public bool RETURN, CONTINUE, BREAK;
+        public Object RETURN_VALUE;
+        public Utilities.Tracker tracer;
 
-        public Interpreter(){
+        public Interpreter(Parser parser, Utilities.Tracker tracer){
+            
             __interpreter__ = this;
+            this.parser = parser;
+            this.current_scope = null;
+            this.RETURN = false;
+            this.CONTINUE = false;
+            this.BREAK = false;
+            this.tracer = tracer;
         }
 
-        public Object visit(object node){
-            return Object.create(""); // TEMP FUNCTION
+        public Object visit_BinOp(AST _node){
+            BinOp node = (BinOp)_node;
+            object result;
+
+            switch (node.op.type){
+                case TokenType.ADD:
+                    result = visit(node.left).value + visit(node.right).value;
+                    break;
+                case TokenType.SUB:
+                    result = visit(node.left).value - visit(node.right).value;
+                    break;
+                case TokenType.MUL:
+                    result = visit(node.left).value * visit(node.right).value;
+                    break;
+                case TokenType.DIV:
+                    result = (double)visit(node.left).value / visit(node.right).value;
+                    break;
+                case TokenType.INT_DIV:
+                    result = (long)visit(node.left).value / (long)visit(node.right).value;
+                    break;
+                case TokenType.MOD:
+                    result = visit(node.left).value % visit(node.right).value;
+                    break;
+                case TokenType.POW:
+                    result = Math.Pow(visit(node.left).value, visit(node.right).value);
+                    break;
+                
+                case TokenType.GT:
+                    result = visit(node.left).value > visit(node.right).value;
+                    break;
+                case TokenType.GE:
+                    result = visit(node.left).value >= visit(node.right).value;
+                    break;
+                case TokenType.EQ:
+                    result = visit(node.left).value == visit(node.right).value;
+                    break;
+                case TokenType.NE:
+                    result = visit(node.left).value != visit(node.right).value;
+                    break;
+                case TokenType.LT:
+                    result = visit(node.left).value < visit(node.right).value;
+                    break;
+                case TokenType.LE:
+                    result = visit(node.left).value <= visit(node.right).value;
+                    break;
+                case TokenType.AND:
+                    result = visit(node.left).value && visit(node.right).value;
+                    break;
+                case TokenType.OR:
+                    result = visit(node.left).value || visit(node.right).value;
+                    break;
+                default:
+                    throw new Exception($"Unsupported BinOp {node.op.type}");
+            }
+
+            return Object.create(result);
         }
+
+        public Object visit_UnaryOp(AST _node){
+            UnaryOp node = (UnaryOp)_node;
+            object result;
+            switch (node.op.type){
+                case TokenType.ADD:
+                    result = +visit(node.expr).value;
+                    break;
+                case TokenType.SUB:
+                    result = -visit(node.expr).value;
+                    break;
+                case TokenType.NOT:
+                    result = !visit(node.expr).value;
+                    break;
+                default:
+                    throw new Exception($"Unsupported UnaryOp {node.op.type}");
+            }
+            return Object.create(result);
+        }
+
+        public Object visit_IntObject(AST node){ return (IntObject)node; }
+        public Object visit_FloatObject(AST node){ return (FloatObject)node; }
+        public Object visit_BoolObject(AST node){ return (BoolObject)node; }
+        public Object visit_StringObject(AST node){ return(StringObject) node; }
+        public Object visit_ArrayObject(AST node){ return (ArrayObject)node; }
+        public Object visit_RecordObject(AST node){ return (RecordObject)node; }
+
+        public void visit_Compound(AST _node){
+            Compound node = (Compound)_node;
+            foreach (var child in node.children){
+                if (RETURN || BREAK || CONTINUE) break;
+                visit(child);
+            }
+        }
+
+        public void visit_NoOp(AST node){}
+
+        public Object set_element(Object L, List<AST> indexes, AST value){
+            AST target = visit(indexes[0]);
+            if (indexes.Count < 2){
+                L[target] = value;
+            }
+            else {
+                L[target] = set_element((Object)L[target], indexes.Skip(1).ToList(), value);
+            }
+            return L;
+        }
+
+        public void visit_Assign(AST _node){
+            Assign node = (Assign)_node;
+            var var_name = node.left.name;
+            if (current_scope._variables.ContainsKey(var_name)){
+                var val = visit_Var(node.left, false);
+                
+                if (node.left.array_indexes.Count > 0){
+                    val = set_element(
+                        val, 
+                        node.left.array_indexes, 
+                        visit(node.right)
+                    );
+                    return;
+                }
+            }
+            current_scope.insert(node.left, visit(node.right));
+        }
+
+        public Object visit_Var(AST _node){
+            Var node = (Var)_node;
+            return visit_Var(node, true);
+        }
+
+        public Object visit_Var(Var node, bool traverse_lists){
+            string var_name = node.name;
+            Object val = (Object)current_scope.get(node);
+            if (traverse_lists){
+                foreach (var i in node.array_indexes){
+                    Object target = (Object)visit(i);
+                    
+                    var temp = val[target];
+                    // when a StringObject is sliced a char is returned but we want a StringObject
+                    //print(type(val))
+                    if (!(temp is Object)) val = Object.create(temp);
+                    else { val = (Object)temp; }
+                    val = (Object)visit(val);
+                    //print(f"val type: {type(val)}")
+                }
+            }
+            return val;
+        }
+
+        public Object visit_Magic(AST _node){
+            Magic node = (Magic)_node;
+            switch (node.token.value){
+                case "OUTPUT":
+                    List<string> values = new List<string>{};
+                    for (int i = 0; i < node.parameters.Count; i++){
+                        AST n = node.parameters[i];
+                        Console.Write(Convert.ToString(visit(n)));
+                        if (i < node.parameters.Count - 1) Console.Write(" ");
+                    }
+                    Console.Write("\n");
+                    break;
+                case "USERINPUT":
+                    return Object.create(Console.ReadLine());
+                case "RETURN":
+                    RETURN_VALUE = node.parameters.Count > 0 ? visit(node.parameters[0]) : null;
+                    RETURN = true;
+                    break;
+                case "CONTINUE":
+                    CONTINUE = true;
+                    break;
+                case "BREAK":
+                    BREAK = true;
+                    break;
+            }
+            return null;
+        }
+
+        public void visit_Subroutine(AST _node){
+            Subroutine node = (Subroutine)_node;
+            current_scope.insert(node.token, node);
+        }
+
+        public void visit_Record(AST _node){
+            Record node = (Record)_node;
+            current_scope.insert(node.token, node);
+        }
+
+        public RecordObject create_RecordObject(SubroutineCall node, Record baseRecord){
+            RecordObject record_object = new RecordObject(baseRecord);
+            for (int i = 0; i < baseRecord.parameters.Count; i++){
+                string name = baseRecord.parameters[i].variable.name;
+                Param param = node.parameters[i];
+                record_object.properties[name] = visit(param.value);
+            }
+            return record_object;
+        }
+
+        public Object visit_SubroutineCall(AST _node){
+            SubroutineCall node = (SubroutineCall)_node;
+
+            Object function = visit(node.subroutine_token);
+
+            if (function is Record){
+                return create_RecordObject(node, (Record)function);
+            }
+            else if (function is Subroutine){
+                Subroutine subroutine = (Subroutine)function;
+                VariableScope function_scope = new VariableScope("function_scope", current_scope);
+            
+                if (subroutine.classBase != null){
+                    function_scope.insert(new Var(new Token("this", TokenType.ID)), subroutine.classBase);
+                }
+                
+                
+                if (subroutine.parameters.Count != node.parameters.Count){
+                    throw new Exception("mismatched function parameters");
+                }
+                for (int i = 0; i < subroutine.parameters.Count; i++){
+                    DeclaredParam param_definition = subroutine.parameters[i];
+                    Param parameter = node.parameters[i];
+                    function_scope.insert(param_definition.variable, visit(parameter.value));
+                }
+                current_scope = function_scope;
+                // execute function
+                RETURN_VALUE = null;
+                RETURN = false;
+                visit(subroutine.compound);
+                RETURN = false;
+                Object result = RETURN_VALUE;
+                RETURN_VALUE = null;
+                current_scope = current_scope.enclosing_scope;
+
+                //Console.WriteLine(function_scope._variables)
+                return result;
+            }
+            else if (function is ClassDefinition){
+                ClassDefinition cls = (ClassDefinition)function;
+                Var tok = (Var)node.subroutine_token.ShallowCopy();
+                tok.array_indexes.Add(Object.create("INIT"));
+                SubroutineCall temp = new SubroutineCall(tok, node.parameters);
+                //Console.WriteLine("creating class instance...")
+                return create_ClassInstance(temp, cls);
+            }
+            else if (function is BuiltinSubroutine){
+                return prcoess_BuiltinSubroutineCall((BuiltinSubroutine)function, node);
+            }
+
+            return null;
+        }
+
+        public void visit_IfStatement(AST _node){
+            IfStatement node = (IfStatement)_node;
+            if (Convert.ToBoolean(visit(node.condition).value)){
+                visit(node.consequence);
+            }
+            else {
+                foreach (var statement in node.alternatives){
+                    visit(statement);
+                }
+            }
+        }
+
+        public void visit_WhileStatement(AST _node){
+            WhileStatement node = (WhileStatement)_node;
+            while (Convert.ToBoolean(visit(node.condition).value)){
+                visit(node.consequence);
+                if (CONTINUE){
+                    CONTINUE = false;
+                    continue;
+                }
+                if (BREAK){
+                    BREAK = false;
+                    break;
+                }
+            }
+        }
+
+        public void visit_RepeatUntilStatement(AST _node){
+            RepeatUntilStatement node = (RepeatUntilStatement)_node;
+
+            while (true){
+                visit(node.consequence);
+                if (CONTINUE){
+                    CONTINUE = false;
+                    continue;
+                }
+                if (BREAK){
+                    BREAK = false;
+                    break;
+                }
+
+                if (Convert.ToBoolean(visit(node.condition).value)) break;
+            }
+        }
+
+        public void visit_ForLoop(AST _node){
+            ForLoop node = (ForLoop)_node;
+
+            if (node.to_step){
+                long step = node.step != null ? (long)visit(node.step).value : 1L;
+                for (long i = (long)visit(node.start).value; i < visit(node.end).value+1; i += step){
+                    current_scope.insert(node.variable, Object.create(i));
+                    visit(node.loop);
+                    if (CONTINUE){
+                        CONTINUE = false;
+                        continue;
+                    }
+                    if (BREAK){
+                        BREAK = false;
+                        break;
+                    }
+                }
+            }
+            else {
+                var iterator = visit(node._iterator).value;
+                foreach (var i in iterator){
+                    var current = i;
+                    // strings :
+                    if (i is Object) current = visit(i).value;
+                    current_scope.insert(node.variable, Object.create(current));
+                    visit(node.loop);
+                    if (CONTINUE){
+                        CONTINUE = false;
+                        continue;
+                    }
+                    if (BREAK){
+                        BREAK = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        public void visit_TryCatch(AST _node){
+            TryCatch node = (TryCatch)_node;
+            try {
+                visit(node.try_compound);
+            }
+            catch {
+                visit(node.catch_compound);
+            }
+        }
+
+        public ClassDefinition visit_ClassDefinition(AST _node){
+            ClassDefinition node = (ClassDefinition)_node;
+            current_scope.insert(node.token, node);
+            foreach (var v in node.static_values){
+                node.properties[v.left.name] = visit(v.right);
+            }
+            foreach (var f in node.subroutines){
+                f.classBase = node;
+                node.properties[f.token.name] = f;
+            }
+            //Console.WriteLine(node.properties)
+            return node;
+        }
+
+        public ClassInstance create_ClassInstance(SubroutineCall node, ClassDefinition baseClass){
+            ClassInstance class_instance = new ClassInstance(baseClass);
+            foreach (var name in class_instance.properties.Keys){
+                var func = class_instance.properties[name];
+                if (func is Subroutine){
+                    ((Subroutine)func).classBase = class_instance;
+                }
+            }
+
+            if (class_instance.properties.TryGetValue("INIT", out var initialise_function)){
+                node.subroutine_token = (Var)initialise_function;
+                visit(node);
+            }
+
+            return class_instance;
+        }
+
+        public BuiltinSubroutine visit_BuiltinSubroutine(AST _node){ return (BuiltinSubroutine)_node; }
+
+        public Object prcoess_BuiltinSubroutineCall(BuiltinSubroutine node, SubroutineCall call){
+            object obj;
+            List<AST> old_indexes = call.subroutine_token.array_indexes;
+            if (call.subroutine_token.array_indexes.Count > 0){
+                List<AST> new_indexes = new List<AST>(call.subroutine_token.array_indexes);
+                new_indexes.RemoveAt(call.subroutine_token.array_indexes.Count-1);
+                call.subroutine_token.array_indexes = new_indexes;
+                obj = visit_Var(call.subroutine_token);
+                call.subroutine_token.array_indexes = old_indexes;
+            }
+            else obj = _BUILTINS.instance;
+
+
+
+            List<AST> visited_params = new List<AST>{};
+            foreach (var p in call.parameters){
+                visited_params.Add(visit(p.value));
+            }
+            var result = node.methodInfo.Invoke(
+                obj,
+                visited_params.ToArray()
+            );
+            if (result == null) return null;
+            return (Object)result;
+        }
+
+        public void interpret(){
+            var tree = parser.parse();
+            var global_scope = new VariableScope("global", null);
+            current_scope = global_scope;
+
+            // add _BUILTINS and all BuiltinModules
+            
+            foreach (Type t in Utilities.Utilities.GetInheritedClasses(typeof(BuiltinModule))){
+                BuiltinModule instance = (BuiltinModule)Activator.CreateInstance(t);
+                Var v = new Var(new Token(t.Name.Skip(1).ToString(), TokenType.ID));
+                current_scope.insert(v, instance);
+
+                if (t.Name == "_BUILTINS"){
+                    foreach (string name in instance.properties.Keys){
+                        BuiltinSubroutine s = (BuiltinSubroutine)instance.properties[name];
+                        Var _v = new Var(new Token(name, TokenType.ID));
+                        current_scope.insert(_v, s);
+                    }
+                }
+            }
+
+            visit(tree);
+        }
+
     }
 }

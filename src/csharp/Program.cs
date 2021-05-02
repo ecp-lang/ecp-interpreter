@@ -28,14 +28,16 @@ namespace Ecp
             }
             table.Print();
 
-            new Interpreter();
+            Parser parser = new Parser(lexer);
+            Interpreter interpreter = new Interpreter(parser, new Utilities.Tracker(new List<string>{"a"}, true));
+            interpreter.interpret();
+            interpreter.tracer.displayTraceTable(new List<string>{"a"});
 
-            var t1 = Object.create(12L);
-            var t2 = Object.create(13L);
-            Console.WriteLine((t1 + t2).value);
-
-            var l1 = Object.create(new List<object>{"1st element"});
-            Console.WriteLine(l1[0]);
+            //var t1 = Object.create(12L);
+            //var t2 = Object.create(13L);
+            //Console.WriteLine((t1 + t2).value);
+            //var l1 = Object.create(new List<object>{Object.create("1st element")});
+            //Console.WriteLine(l1[0]);
         }
     }
 }

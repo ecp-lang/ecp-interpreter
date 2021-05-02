@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
+using System;
 namespace Ecp
 {
     enum TokenType {
@@ -64,10 +65,10 @@ namespace Ecp
         RECORD
     }
     class Token {
-        public object value;
+        public string value;
         public TokenType type;
         public int lineno, column;
-        public Token(object value, TokenType _type, int lineno=0, int column=0){
+        public Token(string value, TokenType _type, int lineno=0, int column=0){
             this.value = value;
             this.type = _type;
             this.lineno = lineno;
@@ -179,7 +180,7 @@ namespace Ecp
             this.tokens = new List<Token>{};
         }
 
-        public Token Token(object value, TokenType tokenType){
+        public Token Token(string value, TokenType tokenType){
             return new Token(value, tokenType, lineno, column);
         }
 
@@ -263,8 +264,7 @@ namespace Ecp
             while (!whitespaceChars.Contains(curChar) && curChar != '\0'){
                 s += curChar;
                 advance();
-
-                if (keywords.Keys.Contains(s) && !new List<string>{"=", "*"}.Contains(s)) break;
+                if (keywords.Keys.Contains(s) && !new List<string>{"=", "*"}.Contains(curChar.ToString())) break;
             }
 
             if (keywords.Keys.Contains(s)){
@@ -300,6 +300,8 @@ namespace Ecp
         
         Token getToken(){
             if (curChar == '\n'){
+                lineno += 1;
+                column = 1;
                 advance();
                 return Token("\n", TokenType.NEWLINE);
             }
