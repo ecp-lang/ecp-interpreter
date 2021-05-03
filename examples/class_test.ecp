@@ -4,6 +4,8 @@ CLASS a
 
     SUBROUTINE INIT()
         this.b := 0
+        OUTPUT "init"
+        OUTPUT this.inc_b
     ENDSUBROUTINE
 
     SUBROUTINE STR()
@@ -20,6 +22,7 @@ CLASS a
 ENDCLASS
 
 instance := a()
+#instance.b := 3
 OUTPUT instance
 OUTPUT [instance, "aa"]
 

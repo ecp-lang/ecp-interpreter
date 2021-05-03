@@ -1,18 +1,11 @@
-a := 1
-a := 2
-a := 1 + 2
-b := 4
-a := -2 + 3 * b
+#b := 0
+#FOR i := 1 TO 10000
+#    b := i + i
+#ENDFOR
+l := []
+FOR i := 1 TO 10000
+    l.append(i)
+ENDFOR
 
-RECORD s
-    b
-ENDRECORD
-
-t := s(1)
-OUTPUT t.b
-
-SUBROUTINE f(v)
-    RETURN v + 1
-ENDSUBROUTINE
-
-OUTPUT f(3)
+#a := 1 + 1.1 + 2.1
+#OUTPUT a

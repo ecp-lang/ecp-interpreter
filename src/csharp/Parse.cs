@@ -112,9 +112,9 @@ namespace Ecp
     }
 
     class SubroutineCall : AST {
-        public Var subroutine_token;
+        public AST subroutine_token;
         public List<Param> parameters;
-        public SubroutineCall(Var subroutine_token, List<Param> parameters){
+        public SubroutineCall(AST subroutine_token, List<Param> parameters){
             this.subroutine_token = subroutine_token;
             this.parameters = parameters;
         }
@@ -122,6 +122,7 @@ namespace Ecp
 
     class BuiltinSubroutine : Object {
         public MethodInfo methodInfo;
+        public BuiltinModule baseModule;
         public BuiltinSubroutine(MethodInfo methodInfo){
             this.methodInfo = methodInfo;
         }
@@ -136,7 +137,7 @@ namespace Ecp
             {TokenType.BOOLEAN, typeof(System.Boolean)},
             {TokenType.STRING, typeof(System.String)}
         };
-        public dynamic value;
+        public object value; // dynamic causes some performance issues!
         public Dictionary<object, object> properties;
         public Object(){}
         public Object(object value){
@@ -193,22 +194,96 @@ namespace Ecp
         }
 
         public static Object operator +(Object a){
-            return create(a.value);
+            if (a is IntObject) return +(IntObject)a;
+            if (a is FloatObject) return +(FloatObject)a;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
         }
         public static Object operator -(Object a){
-            return create(-a.value);
+            if (a is IntObject) return -(IntObject)a;
+            if (a is FloatObject) return -(FloatObject)a;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
         }
         public static Object operator +(Object a, Object b){
-            return create(a.value + b.value);
+            if (a is IntObject) return (IntObject)a+b;
+            if (a is FloatObject) return (FloatObject)a+b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
         }
         public static Object operator -(Object a, Object b){
-            return create(a.value - b.value);
+            if (a is IntObject) return (IntObject)a-b;
+            if (a is FloatObject) return (FloatObject)a-b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
         }
         public static Object operator *(Object a, Object b){
-            return create((dynamic)a.value * (dynamic)b.value);
+            if (a is IntObject) return (IntObject)a*b;
+            if (a is FloatObject) return (FloatObject)a*b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
         }
         public static Object operator /(Object a, Object b){
-            return create((dynamic)a.value / (dynamic)b.value);
+            if (a is IntObject) return (IntObject)a/b;
+            if (a is FloatObject) return (FloatObject)a/b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+        public static Object IntDiv(Object a, Object b){
+            if (a is IntObject) return IntObject.IntDiv((IntObject)a, b);
+            if (a is FloatObject) return FloatObject.IntDiv((FloatObject)a, b);
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+        public static Object Pow(Object a, Object b){
+            if (a is IntObject) return IntObject.Pow((IntObject)a, b);
+            if (a is FloatObject) return FloatObject.Pow((FloatObject)a, b);
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+
+        public static Object operator %(Object a, Object b){
+            if (a is IntObject) return (IntObject)a%b;
+            if (a is FloatObject) return (FloatObject)a%b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+        public static Object operator >(Object a, Object b){
+            if (a is IntObject) return (IntObject)a>b;
+            if (a is FloatObject) return (FloatObject)a>b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+        public static Object operator <(Object a, Object b){
+            if (a is IntObject) return (IntObject)a<b;
+            if (a is FloatObject) return (FloatObject)a<b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+        public static Object operator ==(Object a, Object b){
+            if (a is IntObject) return (IntObject)a==b;
+            if (a is FloatObject) return (FloatObject)a==b;
+            if (a is BoolObject) return (BoolObject)a==b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+        public static Object operator !=(Object a, Object b){
+            if (a is IntObject) return (IntObject)a!=b;
+            if (a is FloatObject) return (FloatObject)a!=b;
+            if (a is BoolObject) return (BoolObject)a!=b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+        public static Object operator >=(Object a, Object b){
+            if (a is IntObject) return (IntObject)a>=b;
+            if (a is FloatObject) return (FloatObject)a>=b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+        public static Object operator <=(Object a, Object b){
+            if (a is IntObject) return (IntObject)a<=b;
+            if (a is FloatObject) return (FloatObject)a<=b;
+            throw new Exception($"Cannot perform operator on type {a.GetType()}");
+        }
+
+        public bool isTrue(){
+            return (bool)new BoolObject(this.value).value;
+        }
+        
+        public Object And(Object b){
+            return new BoolObject(this.isTrue() && b.isTrue());
+        }
+        public Object Or(Object b){
+            return new BoolObject(this.isTrue() || b.isTrue());
+        }
+        public static Object operator !(Object a){
+            return new BoolObject(!a.isTrue());
         }
 
         public object this[object index]
@@ -216,16 +291,17 @@ namespace Ecp
             get {
                 object ret;
                 if (index is Object) index = ((Object)index).value;
-                if (index is int || index is long) ret = this.value[Convert.ToInt32(index)];
-                else ret =  this.properties[Convert.ToString(index)];
-
+                if (this is StringObject && (index is long || index is int)) ret = ((StringObject)this)[index];
+                else if (this is ArrayObject && (index is long || index is int)) ret = ((ArrayObject)this)[index];
+                else ret = this.properties[Convert.ToString(index)]; // index is string
                 return ret;
             }
             set {
                 //Console.WriteLine($"set {index} {index.GetType()} {this} {this.value.GetType()}");
                 if (index is Object) index = ((Object)index).value;
-                if (index is int || index is long){ this.value[Convert.ToInt32(index)] = (AST)value; }
-                if (index is string){ this.properties[Convert.ToString(index)] = (AST)value; }
+                if (this is StringObject && (index is long || index is int)){ ((StringObject)this)[Convert.ToInt32(index)] = (AST)value; }
+                else if (this is ArrayObject && (index is long || index is int)){ ((ArrayObject)this)[Convert.ToInt32(index)] = (AST)value; }
+                else this.properties[Convert.ToString(index)] = (AST)value; // index is string
             }
         }
 
@@ -243,17 +319,141 @@ namespace Ecp
         public IntObject(object value) : base() {
             initialize(convert<System.Int64>(value));
         }
+        public static Object operator +(IntObject a){
+            return create(+(long)a.value);
+        }
+        public static Object operator -(IntObject a){
+            return create(-(long)a.value);
+        }
+        public static Object operator +(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value + (long)b.value);
+            return create((long)a.value + (double)b.value);
+        }
+        public static Object operator -(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value - (long)b.value);
+            return create((long)a.value - (double)b.value);
+        }
+        public static Object operator *(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value * (long)b.value);
+            return create((long)a.value * (double)b.value);
+        }
+        public static Object operator /(IntObject a, Object b){
+            if (b is IntObject) return create((double)a.value + (long)b.value);
+            return create((double)a.value + (double)b.value);
+        }
+        public static Object IntDiv(IntObject a, Object b){
+            if (b is IntObject) return create((int)((double)a.value / (long)b.value));
+            return create((int)((double)a.value / (double)b.value));
+        }
+        public static Object Pow(IntObject a, Object b){
+            if (b is IntObject) return create(Math.Pow((long)a.value, (long)b.value));
+            return create(Math.Pow((long)a.value, (double)b.value));
+        }
+        public static Object operator %(IntObject a, Object b){
+            if (b is IntObject) return create((double)a.value % (long)b.value);
+            return create((double)a.value % (double)b.value);
+        }
+        public static Object operator >(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value > (long)b.value);
+            return create((long)a.value > (double)b.value);
+        }
+        public static Object operator <(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value < (long)b.value);
+            return create((long)a.value < (double)b.value);
+        }
+        public static Object operator ==(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value == (long)b.value);
+            return create((long)a.value == (double)b.value);
+        }
+        public static Object operator !=(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value != (long)b.value);
+            return create((long)a.value != (double)b.value);
+        }
+        public static Object operator >=(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value >= (long)b.value);
+            return create((long)a.value >= (double)b.value);
+        }
+        public static Object operator <=(IntObject a, Object b){
+            if (b is IntObject) return create((long)a.value <= (long)b.value);
+            return create((long)a.value <= (double)b.value);
+        }
     }
 
     class FloatObject : Object {
         public FloatObject(object value) : base() {
             initialize(convert<System.Double>(value));
         }
+
+        public static Object operator +(FloatObject a){
+            return create(+(double)a.value);
+        }
+        public static Object operator -(FloatObject a){
+            return create(-(double)a.value);
+        }
+        public static Object operator +(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value + (long)b.value);
+            return create((double)a.value + (double)b.value);
+        }
+        public static Object operator -(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value - (long)b.value);
+            return create((double)a.value - (double)b.value);
+        }
+        public static Object operator *(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value * (long)b.value);
+            return create((double)a.value * (double)b.value);
+        }
+        public static Object operator /(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value + (long)b.value);
+            return create((double)a.value + (double)b.value);
+        }
+        public static Object IntDiv(FloatObject a, Object b){
+            if (b is IntObject) return create((int)((double)a.value / (long)b.value));
+            return create((int)((double)a.value / (double)b.value));
+        }
+        public static Object Pow(FloatObject a, Object b){
+            if (b is IntObject) return create(Math.Pow((long)a.value, (long)b.value));
+            return create(Math.Pow((double)a.value, (double)b.value));
+        }
+        public static Object operator %(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value % (long)b.value);
+            return create((double)a.value % (double)b.value);
+        }
+        public static Object operator >(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value > (long)b.value);
+            return create((double)a.value > (double)b.value);
+        }
+        public static Object operator <(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value < (long)b.value);
+            return create((double)a.value < (double)b.value);
+        }
+        public static Object operator ==(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value == (long)b.value);
+            return create((double)a.value == (double)b.value);
+        }
+        public static Object operator !=(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value != (long)b.value);
+            return create((double)a.value != (double)b.value);
+        }
+        public static Object operator >=(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value >= (long)b.value);
+            return create((double)a.value >= (double)b.value);
+        }
+        public static Object operator <=(FloatObject a, Object b){
+            if (b is IntObject) return create((double)a.value <= (long)b.value);
+            return create((double)a.value <= (double)b.value);
+        }
     }
 
     class BoolObject : Object {
         public BoolObject(object value) : base() {
             initialize(convert<System.Boolean>(value));
+        }
+
+        public static Object operator ==(BoolObject a, Object b){
+            return create((bool)a.value == (bool)b.value);
+        }
+        public static Object operator !=(BoolObject a, Object b){
+            return create((bool)a.value != (bool)b.value);
         }
     }
 
@@ -264,6 +464,22 @@ namespace Ecp
         public override string Repr()
         {
             return $"'{ToString()}'";
+        }
+        public new object this[object index]
+        {
+            get {
+                object ret = null;
+                if (index is Object) index = ((Object)index).value;
+                if (index is int || index is long) ret = ((string)this.value)[Convert.ToInt32(index)];
+
+                return ret;
+            }
+            set {
+                throw new Exception("string is immutable");
+                //Console.WriteLine($"set {index} {index.GetType()} {this} {this.value.GetType()}");
+                //if (index is Object) index = ((Object)index).value;
+                //if (index is int || index is long){ ((string)this.value)[Convert.ToInt32(index)] = (AST)value; }
+            }
         }
     }
 
@@ -278,15 +494,31 @@ namespace Ecp
         public override string ToString()
         {
             List<string> reprs = new List<string>{};
-            foreach (AST element in value){
+            foreach (AST element in (List<AST>)value){
                 reprs.Add(Interpreter.__interpreter__.visit(element).Repr());
             }
             return $"[{string.Join(", ", reprs)}]";
             //return "[{', '.join([repr(__interpreter__.visit(i)) for i in this.value])}]";
         }
 
+        public new object this[object index]
+        {
+            get {
+                object ret = null;
+                if (index is Object) index = ((Object)index).value;
+                if (index is int || index is long) ret = ((List<AST>)this.value)[Convert.ToInt32(index)];
+
+                return ret;
+            }
+            set {
+                //Console.WriteLine($"set {index} {index.GetType()} {this} {this.value.GetType()}");
+                if (index is Object) index = ((Object)index).value;
+                if (index is int || index is long){ ((List<AST>)this.value)[Convert.ToInt32(index)] = (AST)value; }
+            }
+        }
+
         public void append(AST _object){
-            this.value.Add(_object);
+            ((List<AST>)this.value).Add(_object);
         }
     }
 
@@ -327,12 +559,13 @@ namespace Ecp
             this.token = token;
             this.static_values = static_values;
             this.subroutines = subroutines;
+            this.properties = new Dictionary<object, object>{};
         }
 
         public override string ToString()
         {
             if (properties.Keys.Contains("STR")){
-                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["STR"], new List<Param>{})));
+                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((AST)properties["STR"], new List<Param>{})));
             }
             return $"<class definition {token.name}>";
         }
@@ -340,7 +573,7 @@ namespace Ecp
         public override string Repr()
         {
             if (properties.Keys.Contains("REPR")){
-                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["REPR"], new List<Param>{})));
+                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((AST)properties["REPR"], new List<Param>{})));
             }
             return ToString();
         }
@@ -356,7 +589,7 @@ namespace Ecp
         public override string ToString()
         {
             if (properties.Keys.Contains("STR")){
-                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["STR"], new List<Param>{})));
+                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((AST)properties["STR"], new List<Param>{})));
             }
             return $"<class instance {baseClass.token.name}>";
         }
@@ -364,7 +597,7 @@ namespace Ecp
         public override string Repr()
         {
             if (properties.Keys.Contains("REPR")){
-                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((Var)properties["REPR"], new List<Param>{})));
+                return Convert.ToString(Interpreter.__interpreter__.visit(new SubroutineCall((AST)properties["REPR"], new List<Param>{})));
             }
             return ToString();
         }
@@ -385,7 +618,7 @@ namespace Ecp
             };
         }
         public Object sqrt(Object v){
-            return Object.create(Math.Sqrt(v.value));
+            return Object.create(Math.Sqrt(Convert.ToDouble(v.value)));
         }
     }
 
@@ -696,11 +929,11 @@ namespace Ecp
         
             return node;
         }
-
+        public static HashSet<TokenType> term2_targets = new HashSet<TokenType>{TokenType.MUL, TokenType.DIV, TokenType.INT_DIV, TokenType.MOD};
         public AST term2(){        
             AST node = term();
-            List<TokenType> targets = new List<TokenType>{TokenType.MUL, TokenType.DIV, TokenType.INT_DIV, TokenType.MOD};
-            while (targets.Contains(current_token.type)){
+            
+            while (term2_targets.Contains(current_token.type)){
                 Token token = current_token;
                 eat(token.type);
             
@@ -708,11 +941,11 @@ namespace Ecp
             }
             return node;
         }
-
+        public static HashSet<TokenType> term3_targets = new HashSet<TokenType>{TokenType.ADD, TokenType.SUB};
         public AST term3(){        
             AST node = term2();
-            List<TokenType> targets = new List<TokenType>{TokenType.ADD, TokenType.SUB};
-            while (targets.Contains(current_token.type)){
+            
+            while (term3_targets.Contains(current_token.type)){
                 Token token = current_token;
                 eat(token.type);
             
@@ -720,18 +953,18 @@ namespace Ecp
             }
             return node;
         }
-
+        public static HashSet<TokenType> term4_targets = new HashSet<TokenType>{TokenType.LT,
+            TokenType.GT,
+            TokenType.LE,
+            TokenType.GE,
+            TokenType.EQ,
+            TokenType.NE
+        };
         public AST term4(){        
             AST node = term3();
-            List<TokenType> targets = new List<TokenType>{
-                TokenType.LT,
-                TokenType.GT,
-                TokenType.LE,
-                TokenType.GE,
-                TokenType.EQ,
-                TokenType.NE
-            };
-            while (targets.Contains(current_token.type)){
+            
+                
+            while (term4_targets.Contains(current_token.type)){
                 Token token = current_token;
                 eat(token.type);
             
@@ -739,11 +972,10 @@ namespace Ecp
             }
             return node;
         }
-
+        public static HashSet<TokenType> term5_targets = new HashSet<TokenType>{TokenType.AND, TokenType.OR};
         public AST term5(){        
             AST node = term4();
-            List<TokenType> targets = new List<TokenType>{TokenType.AND, TokenType.OR};
-            while (targets.Contains(current_token.type)){
+            while (term5_targets.Contains(current_token.type)){
                 Token token = current_token;
                 eat(token.type);
             
@@ -755,13 +987,12 @@ namespace Ecp
         public AST expr(){
             return term5();
         }
-
+        public static HashSet<TokenType> magic_targets = new HashSet<TokenType>{TokenType.EOF, TokenType.NEWLINE, TokenType.RPAREN};
         public Magic magic_function(){
             Token token = current_token;
-            List<TokenType> targets = new List<TokenType>{TokenType.EOF, TokenType.NEWLINE, TokenType.RPAREN};
             eat(TokenType.MAGIC);
             List<AST> parameters = new List<AST>{};
-            if (!targets.Contains(current_token.type)){
+            if (!magic_targets.Contains(current_token.type)){
                 parameters.Add(expr());
                 while (current_token.type == TokenType.COMMA){
                     eat(TokenType.COMMA);
@@ -1021,11 +1252,10 @@ namespace Ecp
     }
 
     class NodeVisitor {
-        public Object visit(AST node){
+        public virtual Object visit(AST node){
             string method_name = "visit_" + node.GetType().Name;
             var func = this.GetType().GetMethod(
-                method_name, 
-                0,
+                method_name,
                 new Type[]{ typeof(AST) }
             );
             if (func == null){
@@ -1069,7 +1299,7 @@ namespace Ecp
             );*/
         }
         public Object SQRT(Object v){
-            return Object.create(Math.Sqrt(v.value));
+            return Object.create(Math.Sqrt(Convert.ToDouble(v.value)));
         }
 
         public Object Int(Object value){
@@ -1096,81 +1326,88 @@ namespace Ecp
             this.tracer = tracer;
         }
 
+        public override Object visit(AST node){
+            switch (node.GetType().Name){
+                case "BinOp": return visit_BinOp(node);
+                case "UnaryOp": return visit_UnaryOp(node);
+                case "IntObject": return visit_IntObject(node);
+                case "FloatObject": return visit_FloatObject(node);
+                case "BoolObject": return visit_BoolObject(node);
+                case "StringObject": return visit_StringObject(node);
+                case "ArrayObject": return visit_ArrayObject(node);
+                case "RecordObject": return visit_RecordObject(node);
+                case "Compound": visit_Compound(node); break;
+                case "NoOp": visit_NoOp(node); break;
+                case "Assign": visit_Assign(node); break;
+                case "Var": return visit_Var(node);
+                case "Magic": return visit_Magic(node);
+                case "Subroutine": visit_Subroutine(node); break;
+                case "Record": visit_Record(node); break;
+                case "SubroutineCall": return visit_SubroutineCall(node);
+                case "IfStatement": visit_IfStatement(node); break;
+                case "WhileStatement": visit_WhileStatement(node); break;
+                case "RepeatUntilStatement": visit_RepeatUntilStatement(node); break;
+                case "ForLoop": visit_ForLoop(node); break;
+                case "ClassDefinition": return visit_ClassDefinition(node);
+                case "BuiltinSubroutine": return visit_BuiltinSubroutine(node);
+                default:
+                    generic_visit(node);
+                    break;
+            }
+            return null;
+        }
+
         public Object visit_BinOp(AST _node){
             BinOp node = (BinOp)_node;
-            object result;
-
             switch (node.op.type){
                 case TokenType.ADD:
-                    result = visit(node.left).value + visit(node.right).value;
-                    break;
+                    return visit(node.left) + visit(node.right);
                 case TokenType.SUB:
-                    result = visit(node.left).value - visit(node.right).value;
-                    break;
+                    return visit(node.left) - visit(node.right);
                 case TokenType.MUL:
-                    result = visit(node.left).value * visit(node.right).value;
-                    break;
+                    return visit(node.left) * visit(node.right);
                 case TokenType.DIV:
-                    result = (double)visit(node.left).value / visit(node.right).value;
-                    break;
+                    return visit(node.left) / visit(node.right);
                 case TokenType.INT_DIV:
-                    result = (long)visit(node.left).value / (long)visit(node.right).value;
-                    break;
+                    return Object.IntDiv(visit(node.left), visit(node.right));
                 case TokenType.MOD:
-                    result = visit(node.left).value % visit(node.right).value;
-                    break;
+                    return visit(node.left) % visit(node.right);
                 case TokenType.POW:
-                    result = Math.Pow(visit(node.left).value, visit(node.right).value);
-                    break;
+                    return Object.Pow(visit(node.left), visit(node.right));
                 
                 case TokenType.GT:
-                    result = visit(node.left).value > visit(node.right).value;
-                    break;
+                    return visit(node.left) > visit(node.right);
                 case TokenType.GE:
-                    result = visit(node.left).value >= visit(node.right).value;
-                    break;
+                    return visit(node.left) >= visit(node.right);
                 case TokenType.EQ:
-                    result = visit(node.left).value == visit(node.right).value;
-                    break;
+                    return visit(node.left) == visit(node.right);
                 case TokenType.NE:
-                    result = visit(node.left).value != visit(node.right).value;
-                    break;
+                    return visit(node.left) != visit(node.right);
                 case TokenType.LT:
-                    result = visit(node.left).value < visit(node.right).value;
-                    break;
+                    return visit(node.left) < visit(node.right);
                 case TokenType.LE:
-                    result = visit(node.left).value <= visit(node.right).value;
-                    break;
+                    return visit(node.left) <= visit(node.right);
                 case TokenType.AND:
-                    result = visit(node.left).value && visit(node.right).value;
-                    break;
+                    return visit(node.left).And(visit(node.right));
                 case TokenType.OR:
-                    result = visit(node.left).value || visit(node.right).value;
-                    break;
+                    return visit(node.left).Or(visit(node.right));
                 default:
                     throw new Exception($"Unsupported BinOp {node.op.type}");
             }
-
-            return Object.create(result);
         }
 
         public Object visit_UnaryOp(AST _node){
             UnaryOp node = (UnaryOp)_node;
-            object result;
             switch (node.op.type){
                 case TokenType.ADD:
-                    result = +visit(node.expr).value;
-                    break;
+                    return +visit(node.expr);
                 case TokenType.SUB:
-                    result = -visit(node.expr).value;
-                    break;
+                    return -visit(node.expr);
                 case TokenType.NOT:
-                    result = !visit(node.expr).value;
-                    break;
+                    return !visit(node.expr);
                 default:
                     throw new Exception($"Unsupported UnaryOp {node.op.type}");
             }
-            return Object.create(result);
         }
 
         public Object visit_IntObject(AST node){ return (IntObject)node; }
@@ -1271,9 +1508,10 @@ namespace Ecp
             return null;
         }
 
-        public void visit_Subroutine(AST _node){
+        public Subroutine visit_Subroutine(AST _node){
             Subroutine node = (Subroutine)_node;
             current_scope.insert(node.token, node);
+            return node;
         }
 
         public void visit_Record(AST _node){
@@ -1293,17 +1531,24 @@ namespace Ecp
 
         public Object visit_SubroutineCall(AST _node){
             SubroutineCall node = (SubroutineCall)_node;
-
-            Object function = visit(node.subroutine_token);
+            Object function;
+            if (node.subroutine_token is Subroutine){
+                function = (Object)node.subroutine_token;
+            }
+            else {
+                Console.WriteLine($"subroutine token is {node.subroutine_token.GetType()}");
+                function = visit(node.subroutine_token);
+            }
 
             if (function is Record){
                 return create_RecordObject(node, (Record)function);
             }
             else if (function is Subroutine){
                 Subroutine subroutine = (Subroutine)function;
+                Console.WriteLine($"call subroutine {subroutine.token.name}");
                 VariableScope function_scope = new VariableScope("function_scope", current_scope);
-            
                 if (subroutine.classBase != null){
+                    Console.WriteLine(subroutine.classBase.GetType());
                     function_scope.insert(new Var(new Token("this", TokenType.ID)), subroutine.classBase);
                 }
                 
@@ -1331,15 +1576,14 @@ namespace Ecp
             }
             else if (function is ClassDefinition){
                 ClassDefinition cls = (ClassDefinition)function;
-                Var tok = (Var)node.subroutine_token.ShallowCopy();
-                tok.array_indexes.Add(Object.create("INIT"));
-                SubroutineCall temp = new SubroutineCall(tok, node.parameters);
-                //Console.WriteLine("creating class instance...")
-                return create_ClassInstance(temp, cls);
+                Console.WriteLine("creating class instance...");
+                return create_ClassInstance(node.parameters, cls);
             }
             else if (function is BuiltinSubroutine){
                 return prcoess_BuiltinSubroutineCall((BuiltinSubroutine)function, node);
             }
+
+            Console.WriteLine($"SubroutineCall went wrong... {node.GetType()}");
 
             return null;
         }
@@ -1394,7 +1638,7 @@ namespace Ecp
 
             if (node.to_step){
                 long step = node.step != null ? (long)visit(node.step).value : 1L;
-                for (long i = (long)visit(node.start).value; i < visit(node.end).value+1; i += step){
+                for (long i = (long)visit(node.start).value; i < (long)visit(node.end).value+1; i += step){
                     current_scope.insert(node.variable, Object.create(i));
                     visit(node.loop);
                     if (CONTINUE){
@@ -1408,11 +1652,11 @@ namespace Ecp
                 }
             }
             else {
-                var iterator = visit(node._iterator).value;
+                var iterator = (List<AST>)visit(node._iterator).value;
                 foreach (var i in iterator){
                     var current = i;
                     // strings :
-                    if (i is Object) current = visit(i).value;
+                    if (i is Object) current = (AST)visit(i).value;
                     current_scope.insert(node.variable, Object.create(current));
                     visit(node.loop);
                     if (CONTINUE){
@@ -1451,7 +1695,8 @@ namespace Ecp
             return node;
         }
 
-        public ClassInstance create_ClassInstance(SubroutineCall node, ClassDefinition baseClass){
+        public ClassInstance create_ClassInstance(List<Param> parameters, ClassDefinition baseClass){
+            SubroutineCall node;
             ClassInstance class_instance = new ClassInstance(baseClass);
             foreach (var name in class_instance.properties.Keys){
                 var func = class_instance.properties[name];
@@ -1461,8 +1706,9 @@ namespace Ecp
             }
 
             if (class_instance.properties.TryGetValue("INIT", out var initialise_function)){
-                node.subroutine_token = (Var)initialise_function;
-                visit(node);
+                Console.WriteLine($"found init function? {initialise_function != null}");
+                node = new SubroutineCall((Subroutine)initialise_function, parameters); // this is a function, how to point a subroutine call to it?
+                visit_SubroutineCall(node);
             }
 
             return class_instance;
@@ -1472,18 +1718,7 @@ namespace Ecp
 
         public Object prcoess_BuiltinSubroutineCall(BuiltinSubroutine node, SubroutineCall call){
             object obj;
-            List<AST> old_indexes = call.subroutine_token.array_indexes;
-            if (call.subroutine_token.array_indexes.Count > 0){
-                List<AST> new_indexes = new List<AST>(call.subroutine_token.array_indexes);
-                new_indexes.RemoveAt(call.subroutine_token.array_indexes.Count-1);
-                call.subroutine_token.array_indexes = new_indexes;
-                obj = visit_Var(call.subroutine_token);
-                call.subroutine_token.array_indexes = old_indexes;
-            }
-            else obj = _BUILTINS.instance;
-
-
-
+            obj = node.baseModule;
             List<AST> visited_params = new List<AST>{};
             foreach (var p in call.parameters){
                 visited_params.Add(visit(p.value));
@@ -1507,6 +1742,13 @@ namespace Ecp
                 BuiltinModule instance = (BuiltinModule)Activator.CreateInstance(t);
                 Var v = new Var(new Token(t.Name.Skip(1).ToString(), TokenType.ID));
                 current_scope.insert(v, instance);
+                foreach (string name in instance.properties.Keys){
+                    object value = instance.properties[name];
+                    if (value is BuiltinSubroutine){
+                        BuiltinSubroutine s = (BuiltinSubroutine)instance.properties[name];
+                        s.baseModule = instance;
+                    }
+                }
 
                 if (t.Name == "_BUILTINS"){
                     foreach (string name in instance.properties.Keys){
