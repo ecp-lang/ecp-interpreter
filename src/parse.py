@@ -78,6 +78,8 @@ factor                :  PLUS factor
 
 array                 :  LS_PAREN (expr (COMMA expr)*)? RS_PAREN
 
+dictionary            :  LC_BRACE ((expr COLON expr) (COMMA expr COLON expr)*)? RC_BRACE
+
 variable              :  (CONSTANT)? ID (targeter)* (COLON TYPE)?
 
 targeter              :  LS_PAREN expr RS_PAREN
@@ -220,6 +222,18 @@ class Object(AST):
         else:
             self.properties[index] = value
     
+    def __hash__(self):
+        return hash(self.value)
+    
+    def __eq__(self, other):
+        if isinstance(other, Object):
+            return self.value == other.value
+        else:
+            return other.__eq__(self)
+    
+    def __ne__(self, other):
+        return not (self == other)
+    
     @staticmethod
     def create(value):
         t = Object.associations.get(type(value).__name__)
@@ -270,6 +284,25 @@ class ArrayObject(Object):
 
     def append(self, _object):
         self.value.append(_object)
+
+class DictionaryObject(Object):
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(dict(value.value))
+        else:
+            super().__init__(dict(value))
+    
+    def __get__(self, key, default):
+        return self.value[key]
+    
+    def __set__(self, key, value):
+        self.value[key] = value
+    
+    def __getitem__(self, index):
+        return self.value[index]
+    
+    def __setitem__(self, index, value):
+        self.value[index] = value
 
 class Record(Object):
     def __init__(self, token):
@@ -347,15 +380,17 @@ Object.associations = {
     "bool":  BoolObject,
     "str":   StringObject,
     "list":  ArrayObject,
+    "dict":  DictionaryObject,
 }
 
 Object.types = {
-    "Integer": IntObject,
-    "Int":     IntObject,
-    "Real":    FloatObject,
-    "Bool":    BoolObject,
-    "String":  StringObject,
-    "Array":   ArrayObject,
+    "Integer":    IntObject,
+    "Int":        IntObject,
+    "Real":       FloatObject,
+    "Bool":       BoolObject,
+    "String":     StringObject,
+    "Array":      ArrayObject,
+    "Dictionary": DictionaryObject,
 }
 
 TokenConversions = {
@@ -611,7 +646,11 @@ class Parser:
             node = self.array()
             self.eat(TokenType.RS_PAREN)
             return node
-        
+        elif token.type == TokenType.LC_BRACE:
+            self.eat(TokenType.LC_BRACE)
+            node = self.dictionary()
+            self.eat(TokenType.RC_BRACE)
+            return node
         elif token.type == TokenType.MAGIC:
             return self.magic_function()
         else:
@@ -827,6 +866,28 @@ class Parser:
         self.eat_gap()
         #print(values)
         return ArrayObject(values)
+    
+    def dictionary(self):
+        """ LC_BRACE ((expr COLON expr) (COMMA expr COLON expr)*)?  RC_BRACE """
+        values = {}
+        if self.current_token.type != TokenType.RC_BRACE:
+            self.eat_gap()
+            key = self.expr()
+            self.eat(TokenType.COLON)
+            self.eat_gap()
+            value = self.expr()
+            values[key] = value
+            while self.current_token.type == TokenType.COMMA:
+                self.eat_gap()
+                self.eat(TokenType.COMMA)
+                self.eat_gap()
+                key = self.expr()
+                self.eat(TokenType.COLON)
+                self.eat_gap()
+                value = self.expr()
+                values[key] = value
+                self.eat_gap()
+        return DictionaryObject(values)
     
     def for_loop(self):
         """for_loop   : FOR ID ASSIGN expr TO expr (STEP expr)? statement_list ENDFOR
@@ -1094,6 +1155,9 @@ class Interpreter(NodeVisitor):
         return node
 
     def visit_ArrayObject(self, node: Object):
+        return node
+    
+    def visit_DictionaryObject(self, node: Object):
         return node
     
     def visit_RecordObject(self, node: Object):

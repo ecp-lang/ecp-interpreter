@@ -32,6 +32,8 @@ class TokenType(Enum):
     RPAREN = "RPAREN"
     LS_PAREN = "LS_PAREN"
     RS_PAREN = "RS_PAREN"
+    LC_BRACE = "LC_BRACE"
+    RC_BRACE = "RC_BRACE"
 
     STRING_QUOTE = "STRING_QUOTE"
     BOOLEAN = "BOOLEAN"
@@ -123,6 +125,8 @@ symbols = { # single char symbols
     ")":  TokenType.RPAREN,
     "[":  TokenType.LS_PAREN,
     "]":  TokenType.RS_PAREN, 
+    "{":  TokenType.LC_BRACE,
+    "}":  TokenType.RC_BRACE,
     ",":  TokenType.COMMA,
     "'":  TokenType.STRING_QUOTE,
     "\"": TokenType.STRING_QUOTE,
@@ -321,6 +325,8 @@ class Lexer:
     
     def getToken(self):
         if self.curChar == "\n":
+            self.lineno += 1
+            self.column = 0
             self.advance()
             return Token("\n", TokenType.NEWLINE)
         elif self.curChar in self.startIdChars: # ID
