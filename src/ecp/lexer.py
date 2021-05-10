@@ -1,4 +1,5 @@
 from tabulate import tabulate
+from dataclasses import dataclass
 from typing import *
 from enum import Enum
 import string
@@ -72,6 +73,8 @@ class TokenType(Enum):
     CATCH = "CATCH"
     CLASS = "CLASS"
     RECORD = "RECORD"
+    IMPORT = "IMPORT"
+    AS = "AS"
 
 class Token:
     def __init__(self, value, _type, lineno=0, column=0):
@@ -134,14 +137,6 @@ symbols = { # single char symbols
     ".":  TokenType.DOT,
 }
 QUOTE_CHARS = ("'", "\"")
-#symbols = [] # single-char keywords
-other_symbols = {} # multi-char keywords
-builtin_functions = [
-    #"USERINPUT", "LEN", "POSITION", "SUBSTRING", 
-    #"STRING_TO_INT", "STRING_TO_REAL", "INT_TO_STRING", 
-    #"REAL_TO_STRING", "CHAR_TO_CODE", "CODE_TO_CHAR", "RANDOM_INT",
-    #"SQRT",
-]
 keywords = {
     "SUBROUTINE": TokenType.SUBROUTINE, 
     "ENDSUBROUTINE": TokenType.KEYWORD, 
@@ -178,21 +173,16 @@ keywords = {
     "ENDTRY": TokenType.KEYWORD,
     "CLASS": TokenType.CLASS,
     "ENDCLASS": TokenType.KEYWORD,
+    "IMPORT": TokenType.IMPORT,
+    "AS": TokenType.AS,
 }
 
-types = {
-    #"Real": TokenType.TYPE,
-    #"Integer": TokenType.TYPE,
-    #"Int": TokenType.TYPE,
-    #"Bool": TokenType.TYPE,
-    #"String": TokenType.TYPE,
-    #"Array": TokenType.TYPE,
-    #"Record": TokenType.TYPE,
-}
+KEYWORDS = {**symbols, **keywords}
 
-
-
-KEYWORDS = {**symbols, **other_symbols, **keywords}
+@dataclass
+class LexerResult:
+    tokens: List[Token]
+    lines: List[str]
 
 class Lexer:
     def __init__(self):
@@ -353,4 +343,4 @@ class Lexer:
             self.tokens.append(token)
             if token.type == TokenType.EOF:
                 end = True
-        return self.tokens
+        return LexerResult(self.tokens, self.lines)

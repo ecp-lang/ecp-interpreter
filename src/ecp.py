@@ -1,9 +1,10 @@
 __version__ = "1.1.2-beta"
-from lexer import *
-from parse import *
+from ecp.lexer import *
+from ecp.parse import *
 import argparse
-from tracker import Tracker
+from ecp.tracker import Tracker
 from traceback import print_exc
+import os
 
 parser = argparse.ArgumentParser(description="ECP interpreter")
 parser.add_argument("inputfile", type=argparse.FileType("r", encoding="utf-8"), nargs="?")
@@ -18,6 +19,8 @@ should_trace = len(options.trace) > 0
 #print(options)
 if options.inputfile:
     string = options.inputfile.read()
+    loc = os.path.dirname(os.path.abspath(options.inputfile.name))
+    name = os.path.basename(options.inputfile.name)
     options.inputfile.close()
 
     l = Lexer()
@@ -32,10 +35,10 @@ if options.inputfile:
     if options.debug:
         debugOutput(result)
 
-    p = Parser(l)
-    i = Interpreter(p, tracer=Tracker(options.trace, options.tracecompact))
+    p = Parser(result)
+    i = Interpreter(tracer=Tracker(options.trace, options.tracecompact), location=loc, name=name)
 
-    i.interpret()
+    i.interpret(p.parse())
     #print("global variables:", i.current_scope)
     if should_trace:
         print(i.tracer.displayTraceTable(variables=options.trace))
@@ -50,9 +53,9 @@ else:
     prompt = ">>> "
     l = Lexer()
     result = l.lexString("")
-    p = Parser(l)
-    i = Interpreter(p)
-    i.interpret()
+    p = Parser(result)
+    i = Interpreter()
+    i.interpret(p.parse())
     while True:
         if not multiple_line:
             string = input(">>> ")
@@ -70,10 +73,8 @@ else:
         
         try:
             l = Lexer()
-            p = Parser(l)
-            i.parser = p
-            result = l.lexString(string)
-            tree = i.parser.parse()
+            p = Parser(l.lexString(string))
+            tree = Parser(l.lexString(string)).parse()
             i.visit(tree)
         except:
             print_exc(0)

@@ -1,6 +1,6 @@
 import os
-from lexer import *
-from parse import *
+from ecp.lexer import *
+from ecp.parse import *
 
 completed = 0
 total = 0
@@ -9,18 +9,21 @@ print(os.getcwd())
 for (dirpath, dirnames, filenames) in os.walk("../examples"):
     total = len(filenames)
     for f in filenames:
+        if not f.endswith(".ecp"): continue
         print(f"[#] Testing {f}...")
         path = os.path.join(dirpath, f)
         with open(path, encoding="utf-8") as file:
             data = file.read()
         try:
+            loc = os.path.dirname(os.path.abspath(path))
             l = Lexer()
             result = l.lexString(data)
-            p = Parser(l)
-            i = Interpreter(p)
-            i.interpret()
-        except:
+            p = Parser(result)
+            i = Interpreter(location=loc)
+            i.interpret(p.parse())
+        except Exception as e:
             failed += 1
+            raise e
             print(f"[!] An error occured in {f}")
         finally:
             completed += 1

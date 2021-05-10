@@ -1,9 +1,13 @@
-from lexer import *
+from .lexer import *
 import random
 import math
 from pprint import pprint
 from typing import *
 from copy import deepcopy
+import os
+import glob
+import importlib.util
+import inspect
 
 __interpreter__ = None
 
@@ -51,6 +55,8 @@ repeat_until_loop     :  REPEAT compound UNTIL expr
 record_definition     :  RECORD ID (variable)* ENDRECORD
 
 class_definition      :  CLASS ( subroutine | assignment_statement ) ENDCLASS
+
+import_statement      :  IMPORT expr (AS expr)
 
 try_catch             :  TRY compound CATCH compound ENDTRY
 
@@ -162,11 +168,22 @@ class Subroutine(AST):
         self.compound = compound
         self.builtin = False
         self.classBase = None
+        self.scopeBase = None
+
+class SubroutineDefinition(Subroutine):
+    pass
 
 class SubroutineCall(AST):
     def __init__(self, subroutine_token, parameters):
+        if subroutine_token is None:
+            raise "No subroutine Token!"
         self.subroutine_token = subroutine_token
         self.parameters = parameters
+
+class Import(AST):
+    def __init__(self, location, target):
+        self.location = location
+        self.target = target
 
 class NoOp(AST):
     pass
@@ -304,6 +321,9 @@ class DictionaryObject(Object):
     def __setitem__(self, index, value):
         self.value[index] = value
 
+class Module(DictionaryObject):
+    pass
+
 class Record(Object):
     def __init__(self, token):
         super().__init__(None)
@@ -363,16 +383,6 @@ class ClassInstance(Object):
 class BuiltinModule(Object):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-class _math(BuiltinModule):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.properties = {
-            "sqrt": self.sqrt
-        }
-    
-    def sqrt(self, v: Object):
-        return Object.create(math.sqrt(v.value))
 
 Object.associations = {
     "int":   IntObject,
@@ -460,7 +470,7 @@ class TryCatch(AST):
 #        return Int(self.value + other.value)
 
 class Parser:
-    def __init__(self, lexer: Lexer):
+    def __init__(self, lexer: LexerResult):
         self.nodes = {}
         self.offset = 0
         self.lexer = lexer
@@ -568,6 +578,8 @@ class Parser:
             return self.subroutine()
         elif self.current_token.type == TokenType.CLASS:
             return self.class_definition()
+        elif self.current_token.type == TokenType.IMPORT:
+            return self.import_statement()
         else:
             #node = self.empty()
             return
@@ -775,7 +787,7 @@ class Parser:
         self.eat(TokenType.RPAREN)
         compound = self.compound()
         self.eat(TokenType.KEYWORD)
-        return Subroutine(token, parameters, compound)
+        return SubroutineDefinition(token, parameters, compound)
 
     def subroutine_call(self, var):
         self.eat(TokenType.LPAREN)
@@ -966,6 +978,15 @@ class Parser:
         self.eat(TokenType.KEYWORD)
 
         return ClassDefinition(variable, static_values, subroutines)
+    
+    def import_statement(self):
+        self.eat(TokenType.IMPORT)
+        location = self.expr()
+        target = None
+        if self.current_token.type == TokenType.AS:
+            self.eat(TokenType.AS)
+            target = self.expr()
+        return Import(location, target)
 
     def parse(self):
         node = self.program()
@@ -996,15 +1017,27 @@ class VariableScope(object):
                 return self.enclosing_scope.get(var)
         
         raise InterpreterError(f"variable {var.value} does not exist")
+    
+    def __get__(self, key, default):
+        return self._variables[key.value]
+    
+    def __set__(self, key, value):
+        self._variables[key.value] = value
+    
+    def __getitem__(self, index):
+        return self._variables[index.value]
+    
+    def __setitem__(self, index, value):
+        self._variables[index.value] = value
 
 class NodeVisitor(object):
     def visit(self, node):
-        method_name = 'visit_' + type(node).__name__
+        method_name = 'visit_' + node.__class__.__name__
         visitor = getattr(self, method_name, self.generic_visit)
         return visitor(node)
 
     def generic_visit(self, node):
-        raise Exception('No visit_{} method'.format(type(node).__name__))
+        raise Exception('No visit_{} method'.format(node.__class__.__name__))
 
 
 class _BUILTINS(BuiltinModule):
@@ -1084,14 +1117,20 @@ class _BUILTINS(BuiltinModule):
 
 
 class Interpreter(NodeVisitor):
-    def __init__(self, parser: Parser, tracer=None):
+    def __init__(self, tracer=None, location=None, name=None, stdlib_loc="stdlib"):
         global __interpreter__
-        self.parser = parser
         self.current_scope = None
         self.RETURN = False
         self.CONTINUE = False
         self.BREAK = False
         self.tracer = tracer
+        self.path = [os.path.join(os.path.dirname(inspect.stack()[0][1]), stdlib_loc)]
+        self.location, self.name = None, name
+        if location:
+            self.path.insert(0, location)
+            self.location = location
+            os.chdir(location)
+        #print(self.path)
 
         __interpreter__ = self # hacky solution to allwoing object to access the interpreter
     
@@ -1237,9 +1276,14 @@ class Interpreter(NodeVisitor):
             self.CONTINUE = True
         elif node.token.value == "BREAK":
             self.BREAK = True
+    
+    def visit_SubroutineDefinition(self, node: SubroutineDefinition):
+        s = node
+        s.__class__ = Subroutine
+        s.scopeBase = self.current_scope
+        self.current_scope.insert(s.token, s)
 
-    def visit_Subroutine(self, node):
-        self.current_scope.insert(node.token, node)
+    def visit_Subroutine(self, node: Subroutine):
         return node
         #print(f"{node.token.value}({', '.join([n.variable.value for n in node.parameters])})")
         #for c in node.children:
@@ -1259,13 +1303,19 @@ class Interpreter(NodeVisitor):
 
     def visit_SubroutineCall(self, node: SubroutineCall):
         #print(f"called {self.visit(node.subroutine_token)}({', '.join([str(n.value.value) for n in node.parameters])})")
-        function = self.visit(node.subroutine_token)
         
+        function = self.visit(node.subroutine_token) # the subroutine token is a SubroutineDefinition when it shouldn't be?
+
         if isinstance(function, Record):
             return self.create_RecordObject(node, function)
         
         elif isinstance(function, Subroutine):
             #node.subroutine_token.value
+            old_scope = self.current_scope
+            if function.scopeBase:
+                #print(f"Switching to scope {function.scopeBase.name}")
+                self.current_scope = function.scopeBase # move into functions module level scope
+            
             function_scope = VariableScope("function_scope", self.current_scope)
             
             if function.classBase:
@@ -1289,6 +1339,7 @@ class Interpreter(NodeVisitor):
             self.current_scope = self.current_scope.enclosing_scope
 
             #print(function_scope._variables)
+            self.current_scope = old_scope # swap back scope
             return result
         
         elif isinstance(function, ClassDefinition):
@@ -1299,6 +1350,10 @@ class Interpreter(NodeVisitor):
             temp = SubroutineCall(tok, node.parameters)
             #print("creating class instance...")
             return self.create_ClassInstance(temp, cls)
+        elif function is None:
+            print("ERROR, subroutine_token is none! ", node.subroutine_token, function, isinstance(node.subroutine_token, Subroutine))
+            for prop in dir(node):
+                print(f"-- {prop}: {getattr(node, prop)}")
         else:
             parameters = [self.visit(p.value) for p in node.parameters]
             return function(*parameters)
@@ -1372,6 +1427,7 @@ class Interpreter(NodeVisitor):
         for v in node.static_values:
             node.properties[v.left.value] = self.visit(v.right)
         for f in node.subroutines:
+            f.__class__ = Subroutine
             f.classBase = node
             node.properties[f.token.value] = f
         #print(node.properties)
@@ -1386,13 +1442,81 @@ class Interpreter(NodeVisitor):
         initialise_function = class_instance.properties.get("INIT")
         if initialise_function:
             node.subroutine_token = initialise_function
+            # something breaks with classes - need to fix
             self.visit(node)
 
         return class_instance
     
-    def interpret(self):
-        tree = self.parser.parse()
-        global_scope = VariableScope("global", None)
+    def visit_Import(self, node: Import):
+        global __interpreter__
+        #print(self.path)
+        actual_location = self.visit(node.location).value
+        actual_target = self.visit(node.target).value if node.target != None else None
+        
+        module_location = None
+        isPython = False
+        _break = False
+        for loc in self.path:
+            for f in glob.glob(os.path.join(loc, "*.ecp")) + glob.glob(os.path.join(loc, "*.py")):
+                if f.endswith(os.path.normpath(actual_location) + ".ecp"):
+                    #print(f"found target at location {f}")
+                    module_location = f
+                    _break = True
+                    break
+                if f.endswith(os.path.normpath(actual_location) + ".py"):
+                    module_location = f
+                    _break = True
+                    isPython = True
+                    break
+            if _break:
+                break
+        
+        if not actual_target:
+            actual_target = os.path.basename(actual_location)
+        
+        #print(f"import {actual_location} as {actual_target}")
+
+        # need to be able to have variable scopes imported.
+        # all the code from that scope has to access it's variables like it is the global scope
+        # not sure how to do this...
+        # this works.
+
+        
+        if isPython:
+            spec = importlib.util.spec_from_file_location(actual_target, module_location)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            modules = {name: c for name, c in inspect.getmembers(module, inspect.isclass) if issubclass(c, BuiltinModule) and c != BuiltinModule and name == os.path.basename(actual_location)}
+            for name, c in modules.items():
+                v = Var(Token(actual_target, TokenType.ID))
+                self.current_scope.insert(v, c(None))
+        else:
+            # doing the importing
+            old_scope = self.current_scope
+            if os.path.exists(module_location):
+                with open(module_location) as f:
+                    data = f.read()
+
+                i = Interpreter(tracer=None, location=os.path.dirname(module_location), name=os.path.basename(module_location))
+                i.interpret(Parser(Lexer().lexString(data)).parse())
+
+                __interpreter__ = self
+                m = Module({})
+                for k,v in i.current_scope._variables.items():
+                    m[StringObject(k)] = v
+                i.current_scope.name = f"module:{actual_target}"
+                self.current_scope.insert(Var(Token(actual_target, TokenType.ID)), i.current_scope)
+
+            else:
+                raise InterpreterError(f"module '{f}' not found.")
+
+
+            self.current_scope = old_scope
+
+    
+    def interpret(self, parseTree: AST):
+        tree = parseTree
+        global_scope = VariableScope(f"global:{self.name}", None)
         self.current_scope = global_scope
 
 

@@ -1,3 +1,5 @@
+IMPORT "math"
+
 SUBROUTINE isPrime(n: Integer)
     IF n = 1 THEN
         RETURN False
