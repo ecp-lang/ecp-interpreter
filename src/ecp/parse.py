@@ -1470,6 +1470,8 @@ class Interpreter(NodeVisitor):
                     break
             if _break:
                 break
+        else:
+            raise InterpreterError(f"module '{actual_location}' not found.")
         
         if not actual_target:
             actual_target = os.path.basename(actual_location)

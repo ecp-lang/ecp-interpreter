@@ -23,7 +23,6 @@ for (dirpath, dirnames, filenames) in os.walk("../examples"):
             i.interpret(p.parse())
         except Exception as e:
             failed += 1
-            raise e
             print(f"[!] An error occured in {f}")
         finally:
             completed += 1

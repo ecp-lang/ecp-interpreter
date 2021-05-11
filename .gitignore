@@ -14,4 +14,4 @@ executables/ecp
 *.png
 bin
 obj
-ecp*.egg-info/
+*.egg-info/
