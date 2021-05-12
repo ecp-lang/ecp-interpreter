@@ -1,0 +1,2 @@
+IMPORT "sys"
+OUTPUT sys.path
