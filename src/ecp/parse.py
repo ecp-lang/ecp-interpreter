@@ -1,11 +1,13 @@
-from lexer import *
+from .lexer import *
 import random
 import math
 from pprint import pprint
 from typing import *
 from copy import deepcopy
-
-__interpreter__ = None
+import os
+import glob
+import importlib.util
+import inspect
 
 """
 ECP full grammar
@@ -52,6 +54,8 @@ record_definition     :  RECORD ID (variable)* ENDRECORD
 
 class_definition      :  CLASS ( subroutine | assignment_statement ) ENDCLASS
 
+import_statement      :  IMPORT expr (AS expr)
+
 try_catch             :  TRY compound CATCH compound ENDTRY
 
 expr                  :  term5
@@ -78,6 +82,8 @@ factor                :  PLUS factor
 
 array                 :  LS_PAREN (expr (COMMA expr)*)? RS_PAREN
 
+dictionary            :  LC_BRACE ((expr COLON expr) (COMMA expr COLON expr)*)? RC_BRACE
+
 variable              :  (CONSTANT)? ID (targeter)* (COLON TYPE)?
 
 targeter              :  LS_PAREN expr RS_PAREN
@@ -101,17 +107,12 @@ The priority for math operations is as follows:
 class AST(object):
     pass
 
-class TraversableItem(object):
-    pass
 
 class BinOp(AST):
     def __init__(self, left, op, right):
         self.left = left
         self.token = self.op = op
         self.right = right
-
-
-
 
 
 class UnaryOp(AST):
@@ -125,33 +126,39 @@ class Compound(AST):
     def __init__(self):
         self.children = []
 
+
 class Assign(AST):
     def __init__(self, left, op, right):
         self.left = left
         self.token = self.op = op
         self.right = right
 
+
 class Var(AST):
     """The Var node is constructed out of ID token."""
     def __init__(self, token):
         self.token = token
         self.value = token.value
-        self.array_indexes = []
+        self.indexes = []
+
 
 class Magic(AST):
     def __init__(self, token, parameters):
         self.token = token
         self.parameters = parameters
 
+
 class DeclaredParam(AST):
     def __init__(self, variable, default):
         self.variable = variable
         self.default = default
 
+
 class Param(AST):
     def __init__(self, value, id):
         self.value = value
         self.id = id
+
 
 class Subroutine(AST):
     def __init__(self, token, parameters, compound):
@@ -160,11 +167,40 @@ class Subroutine(AST):
         self.compound = compound
         self.builtin = False
         self.classBase = None
+        self.scopeBase = None
+
+
+class SubroutineDefinition(Subroutine):
+    pass
+
 
 class SubroutineCall(AST):
     def __init__(self, subroutine_token, parameters):
         self.subroutine_token = subroutine_token
         self.parameters = parameters
+
+
+class Import(AST):
+    def __init__(self, location, target):
+        self.location = location
+        self.target = target
+
+
+class PropertyIndex(AST):
+    def __init__(self, node):
+        self.node = node
+
+
+class ValueIndex(AST):
+    def __init__(self, node):
+        self.node = node
+
+
+class IndexedItem(AST):
+    def __init__(self, node: AST, indexes: List[Union[PropertyIndex, ValueIndex]]):
+        self.node = node
+        self.indexes = indexes
+
 
 class NoOp(AST):
     pass
@@ -220,6 +256,18 @@ class Object(AST):
         else:
             self.properties[index] = value
     
+    def __hash__(self):
+        return hash(self.value)
+    
+    def __eq__(self, other):
+        if isinstance(other, Object):
+            return self.value == other.value
+        else:
+            return other.__eq__(self.value)
+    
+    def __ne__(self, other):
+        return not (self == other)
+    
     @staticmethod
     def create(value):
         t = Object.associations.get(type(value).__name__)
@@ -258,18 +306,43 @@ class StringObject(Object):
 class ArrayObject(Object):
     def __init__(self, value):
         if isinstance(value, Object):
-            super().__init__(list(value.value))
+            super().__init__([Object.create(o) for o in value.value]) # make sure all elements are objects
         else:
-            super().__init__(list(value))
+            super().__init__([Object.create(o) for o in value])
         self.properties = {
             "append": self.append
         }
     
     def __str__(self):
-        return f"[{', '.join([repr(__interpreter__.visit(i)) for i in self.value])}]"
+        return f"[{', '.join([repr(Interpreter.__interpreter__.visit(i)) for i in self.value])}]"
 
     def append(self, _object):
         self.value.append(_object)
+
+class DictionaryObject(Object):
+    def __init__(self, value):
+        if isinstance(value, Object):
+            super().__init__(dict(value.value))
+        else:
+            super().__init__(dict(value))
+    
+    def __get__(self, key, default):
+        return self.value[key]
+    
+    def __set__(self, key, value):
+        self.value[key] = value
+    
+    def __getitem__(self, index):
+        return self.value[index]
+    
+    def __setitem__(self, index, value):
+        self.value[index] = value
+
+
+class NoneObject(Object):
+    def __init__(self, value=None):
+        super().__init__(None)
+
 
 class Record(Object):
     def __init__(self, token):
@@ -303,12 +376,12 @@ class ClassDefinition(Object):
     
     def __str__(self):
         if "STR" in self.properties:
-            return str(__interpreter__.visit(SubroutineCall(self.properties["STR"], [])))
+            return str(Interpreter.__interpreter__.visit(SubroutineCall(self.properties["STR"], [])))
         return f"<class definition {self.token.value}>"
     
     def __repr__(self):
         if "REPR" in self.properties:
-            return str(__interpreter__.visit(SubroutineCall(self.properties["REPR"], [])))
+            return str(Interpreter.__interpreter__.visit(SubroutineCall(self.properties["REPR"], [])))
         return self.__str__()
 
 class ClassInstance(Object):
@@ -319,43 +392,44 @@ class ClassInstance(Object):
     
     def __str__(self):
         if "STR" in self.properties:
-            return str(__interpreter__.visit(SubroutineCall(self.properties["STR"], [])))
+            return str(Interpreter.__interpreter__.visit(SubroutineCall(self.properties["STR"], [])))
         return f"<class instance {self.base.token.value}>"
     
     def __repr__(self):
         if "REPR" in self.properties:
-            return str(__interpreter__.visit(SubroutineCall(self.properties["REPR"], [])))
+            return str(Interpreter.__interpreter__.visit(SubroutineCall(self.properties["REPR"], [])))
         return self.__str__()
 
 class BuiltinModule(Object):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-class _math(BuiltinModule):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.properties = {
-            "sqrt": self.sqrt
-        }
-    
-    def sqrt(self, v: Object):
-        return Object.create(math.sqrt(v.value))
-
 Object.associations = {
-    "int":   IntObject,
-    "float": FloatObject,
-    "bool":  BoolObject,
-    "str":   StringObject,
-    "list":  ArrayObject,
+    "int":       IntObject,
+    "float":     FloatObject,
+    "bool":      BoolObject,
+    "str":       StringObject,
+    "list":      ArrayObject,
+    "dict":      DictionaryObject,
+    "NoneType":  NoneObject
 }
 
 Object.types = {
-    "Integer": IntObject,
-    "Int":     IntObject,
-    "Real":    FloatObject,
-    "Bool":    BoolObject,
-    "String":  StringObject,
-    "Array":   ArrayObject,
+    "Integer":    IntObject,
+    "Int":        IntObject,
+    "Real":       FloatObject,
+    "Bool":       BoolObject,
+    "String":     StringObject,
+    "Array":      ArrayObject,
+    "Dictionary": DictionaryObject,
+}
+
+TokenConversions = {
+    TokenType.INT: int,
+    TokenType.FLOAT: float,
+    TokenType.BOOLEAN: lambda s: False if s.lower() == "false" else True,
+    TokenType.STRING: str,
+    TokenType.NONE: lambda s: None
 }
 
         
@@ -418,7 +492,7 @@ class TryCatch(AST):
 #        return Int(self.value + other.value)
 
 class Parser:
-    def __init__(self, lexer: Lexer):
+    def __init__(self, lexer: LexerResult):
         self.nodes = {}
         self.offset = 0
         self.lexer = lexer
@@ -504,20 +578,25 @@ class Parser:
             var = self.variable()
             if self.current_token.type == TokenType.LPAREN:
                 node = self.subroutine_call(var)
-            else:
+            elif self.current_token.type == TokenType.ASSIGN:
+                # only happen if next token is assignment
                 node = self.assignment_statement(var)
+            else:
+                node = var
         elif self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
         elif self.current_token.type == TokenType.IF:
             node = self.if_statement()
             self.eat(TokenType.KEYWORD)
+            return node
         elif self.current_token.type == TokenType.WHILE:
             node = self.while_statement()
             self.eat(TokenType.KEYWORD)
+            return node
         elif self.current_token.type == TokenType.REPEAT:
-            node = self.repeat_until_statement()
+            return self.repeat_until_statement()
         elif self.current_token.type == TokenType.FOR:
-            node = self.for_loop()
+            return self.for_loop()
         elif self.current_token.type == TokenType.RECORD:
             return self.record_definition()
         elif self.current_token.type == TokenType.TRY:
@@ -526,9 +605,17 @@ class Parser:
             return self.subroutine()
         elif self.current_token.type == TokenType.CLASS:
             return self.class_definition()
-        else:
-            #node = self.empty()
-            return
+        elif self.current_token.type == TokenType.IMPORT:
+            return self.import_statement()
+        else: # expr
+            return self.expr()
+
+        while self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN, TokenType.LPAREN):
+            if self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN):
+                node = self.process_indexing(node)
+            else:
+                node = self.subroutine_call(node)
+        
         return node
     
     def assignment_statement(self, var):
@@ -550,12 +637,25 @@ class Parser:
         while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
             if self.current_token.type == TokenType.LS_PAREN:
                 self.eat(TokenType.LS_PAREN)
-                node.array_indexes.append(self.expr())
+                node.indexes.append(ValueIndex(self.expr()))
                 self.eat(TokenType.RS_PAREN)
             elif self.current_token.type == TokenType.DOT:
                 self.eat(TokenType.DOT)
-                node.array_indexes.append(self.id())
+                node.indexes.append(PropertyIndex(self.id()))
         return node
+    
+    def process_indexing(self, node):
+        # should split into types
+        indexes = []
+        while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
+            if self.current_token.type == TokenType.LS_PAREN:
+                self.eat(TokenType.LS_PAREN)
+                indexes.append(ValueIndex(self.expr()))
+                self.eat(TokenType.RS_PAREN)
+            elif self.current_token.type == TokenType.DOT:
+                self.eat(TokenType.DOT)
+                indexes.append(PropertyIndex(self.id()))
+        return IndexedItem(node, indexes)
     
     def id(self):
         token = self.current_token
@@ -581,37 +681,44 @@ class Parser:
         if token.type == TokenType.ADD:
             self.eat(TokenType.ADD)
             node = UnaryOp(token, self.factor())
-            return node
         elif token.type == TokenType.SUB:
             self.eat(TokenType.SUB)
             node = UnaryOp(token, self.factor())
-            return node
         elif token.type == TokenType.NOT:
             self.eat(TokenType.NOT)
             node = UnaryOp(token, self.factor())
-            return node
-        elif token.type in (TokenType.INT, TokenType.FLOAT, TokenType.BOOLEAN, TokenType.STRING):
+        elif token.type in TokenConversions.keys():
             self.eat(token.type)
-            return Object.create(token.value)
+            node = Object.create(TokenConversions[token.type](token.value))
         
         elif token.type == TokenType.LPAREN:
             self.eat(TokenType.LPAREN)
             node = self.expr()
             self.eat(TokenType.RPAREN)
-            return node
         elif token.type == TokenType.LS_PAREN:
             self.eat(TokenType.LS_PAREN)
             node = self.array()
             self.eat(TokenType.RS_PAREN)
-            return node
-        
+        elif token.type == TokenType.LC_BRACE:
+            self.eat(TokenType.LC_BRACE)
+            node = self.dictionary()
+            self.eat(TokenType.RC_BRACE)
         elif token.type == TokenType.MAGIC:
-            return self.magic_function()
-        else:
+            node = self.magic_function()
+        elif token.type == TokenType.ID:
             node = self.variable()
             if self.current_token.type == TokenType.LPAREN:
                 node = self.subroutine_call(node)
-            return node
+        else:
+            return
+        
+        while self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN, TokenType.LPAREN):
+            if self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN):
+                # would like to split these so something.something indicates a property and something["something"] is value
+                node = self.process_indexing(node)
+            else:
+                node = self.subroutine_call(node)
+        return node
 
     def term(self):
         node = self.factor()
@@ -729,7 +836,7 @@ class Parser:
         self.eat(TokenType.RPAREN)
         compound = self.compound()
         self.eat(TokenType.KEYWORD)
-        return Subroutine(token, parameters, compound)
+        return SubroutineDefinition(token, parameters, compound)
 
     def subroutine_call(self, var):
         self.eat(TokenType.LPAREN)
@@ -821,6 +928,28 @@ class Parser:
         #print(values)
         return ArrayObject(values)
     
+    def dictionary(self):
+        """ LC_BRACE ((expr COLON expr) (COMMA expr COLON expr)*)?  RC_BRACE """
+        values = {}
+        if self.current_token.type != TokenType.RC_BRACE:
+            self.eat_gap()
+            key = self.expr()
+            self.eat(TokenType.COLON)
+            self.eat_gap()
+            value = self.expr()
+            values[key] = value
+            while self.current_token.type == TokenType.COMMA:
+                self.eat_gap()
+                self.eat(TokenType.COMMA)
+                self.eat_gap()
+                key = self.expr()
+                self.eat(TokenType.COLON)
+                self.eat_gap()
+                value = self.expr()
+                values[key] = value
+                self.eat_gap()
+        return DictionaryObject(values)
+    
     def for_loop(self):
         """for_loop   : FOR ID ASSIGN expr TO expr (STEP expr)? statement_list ENDFOR
                       | FOR variable IN expr statement_list ENDFOR
@@ -898,6 +1027,15 @@ class Parser:
         self.eat(TokenType.KEYWORD)
 
         return ClassDefinition(variable, static_values, subroutines)
+    
+    def import_statement(self):
+        self.eat(TokenType.IMPORT)
+        location = self.expr()
+        target = None
+        if self.current_token.type == TokenType.AS:
+            self.eat(TokenType.AS)
+            target = self.expr()
+        return Import(location, target)
 
     def parse(self):
         node = self.program()
@@ -911,32 +1049,42 @@ class VariableScope(object):
     def __init__(self, name, enclosing_scope):
         self.name = name
         self.enclosing_scope = enclosing_scope
-        self._variables = {}
+        self.properties = {}
     
     def insert(self, var, value):
-        if __interpreter__.tracer:
-            __interpreter__.tracer.onchange(var.value, value)
-        self._variables[var.value] = value
+        if Interpreter.__interpreter__.tracer:
+            Interpreter.__interpreter__.tracer.onchange(var.value, value)
+        self.properties[var.value] = value
     
     def get(self, var):
-        value = self._variables.get(var.value)
-        if value != None:
-            return value
-        
-        if value is None:
+        if var.value not in self.properties.keys():
             while self.enclosing_scope != None:
                 return self.enclosing_scope.get(var)
-        
+        else:
+            value = self.properties.get(var.value)
+            return value
         raise InterpreterError(f"variable {var.value} does not exist")
+    
+    def __get__(self, key, default):
+        return self.properties[key.value]
+    
+    def __set__(self, key, value):
+        self.properties[key.value] = value
+    
+    def __getitem__(self, index):
+        return self.properties[index.value]
+    
+    def __setitem__(self, index, value):
+        self.properties[index.value] = value
 
 class NodeVisitor(object):
     def visit(self, node):
-        method_name = 'visit_' + type(node).__name__
+        method_name = 'visit_' + node.__class__.__name__
         visitor = getattr(self, method_name, self.generic_visit)
         return visitor(node)
 
     def generic_visit(self, node):
-        raise Exception('No visit_{} method'.format(type(node).__name__))
+        raise Exception('No visit_{} method'.format(node.__class__.__name__))
 
 
 class _BUILTINS(BuiltinModule):
@@ -1016,16 +1164,22 @@ class _BUILTINS(BuiltinModule):
 
 
 class Interpreter(NodeVisitor):
-    def __init__(self, parser: Parser, tracer=None):
-        global __interpreter__
-        self.parser = parser
+    __interpreter__ = None
+    def __init__(self, tracer=None, location=None, name=None, stdlib_loc="stdlib"):
         self.current_scope = None
         self.RETURN = False
         self.CONTINUE = False
         self.BREAK = False
         self.tracer = tracer
+        self.path = ArrayObject([os.path.join(os.path.dirname(inspect.stack()[0][1]), stdlib_loc)])
+        self.location, self.name = None, name
+        if location:
+            self.path.value.insert(0, StringObject(location))
+            self.location = location
+            os.chdir(location)
+        #print(self.path)
 
-        __interpreter__ = self # hacky solution to allwoing object to access the interpreter
+        Interpreter.__interpreter__ = self # hacky solution to allwoing object to access the interpreter
     
     def visit_BinOp(self, node: BinOp):
         if node.op.type == TokenType.ADD:
@@ -1089,6 +1243,12 @@ class Interpreter(NodeVisitor):
     def visit_ArrayObject(self, node: Object):
         return node
     
+    def visit_DictionaryObject(self, node: Object):
+        return node
+    
+    def visit_NoneObject(self, node: Object):
+        return node
+    
     def visit_RecordObject(self, node: Object):
         return node
     
@@ -1106,25 +1266,29 @@ class Interpreter(NodeVisitor):
     
     def set_element(self, L, index, value):
         # function for recersively changing a object property
-        target = self.visit(index[0])
+        i = index[0]
+        target = self.visit(i.node)
         if len(index) < 2:
-            if isinstance(target.value, int):
+            if isinstance(i, ValueIndex):
                 L[target] = value
-            else:
-                L[target] = value
+            elif isinstance(i, PropertyIndex):
+                L.properties[target] = value
         else:
-            L[target] = self.set_element(L[target], index[1:], value)
+            if isinstance(i, ValueIndex):
+                L[target] = self.set_element(L[target], index[1:], value)
+            elif isinstance(i, PropertyIndex):
+                L.properties[target] = self.set_element(L[target], index[1:], value)
         return L
     
     def visit_Assign(self, node):
         var_name = node.left.value
-        if var_name in self.current_scope._variables:
+        if var_name in self.current_scope.properties:
             val = self.visit_Var(node.left, traverse_lists=False)
-            #print([self.visit(n) for n in node.left.array_indexes])
-            if len(node.left.array_indexes) > 0:
+            #print([self.visit(n) for n in node.left.indexes])
+            if len(node.left.indexes) > 0:
                 val = self.set_element(
                     val, 
-                    node.left.array_indexes, 
+                    node.left.indexes, 
                     self.visit(node.right)
                 )
                 return
@@ -1138,10 +1302,14 @@ class Interpreter(NodeVisitor):
         val = self.current_scope.get(node)
         #print(f"val type: {type(val)}")
         if traverse_lists:
-            for i in node.array_indexes:
-                target = self.visit(i)
-                
-                val = val[target]
+            for i in node.indexes:
+                target = i
+                if isinstance(target, ValueIndex):
+                    val = val[self.visit(target.node)]
+                elif isinstance(target, PropertyIndex):
+                    val = val.properties[self.visit(target.node)]
+                else:
+                    raise InterpreterError(f"Invalid index '{target}' of type {type(target)}")
                 # when a StringObject is sliced a string is returned but we want a StringObject
                 #print(type(val))
                 if not isinstance(val, (Object,)):
@@ -1151,6 +1319,17 @@ class Interpreter(NodeVisitor):
                 #print(f"val type: {type(val)}")
         
         return val
+    
+    def visit_IndexedItem(self, node: IndexedItem):
+        ret = node.node
+
+        for index in node.indexes:
+            if isinstance(index, ValueIndex):
+                ret = Object.create(self.visit(ret)[self.visit(index.node)])
+            if isinstance(index, PropertyIndex):
+                ret = Object.create(self.visit(ret).properties[self.visit(index.node)])
+
+        return ret
     
     def visit_Magic(self, node):
         if node.token.value == "OUTPUT":
@@ -1166,9 +1345,14 @@ class Interpreter(NodeVisitor):
             self.CONTINUE = True
         elif node.token.value == "BREAK":
             self.BREAK = True
+    
+    def visit_SubroutineDefinition(self, node: SubroutineDefinition):
+        s = deepcopy(node) # deepcopy is critical
+        s.__class__ = Subroutine
+        s.scopeBase = self.current_scope
+        self.current_scope.insert(s.token, s)
 
-    def visit_Subroutine(self, node):
-        self.current_scope.insert(node.token, node)
+    def visit_Subroutine(self, node: Subroutine):
         return node
         #print(f"{node.token.value}({', '.join([n.variable.value for n in node.parameters])})")
         #for c in node.children:
@@ -1188,13 +1372,18 @@ class Interpreter(NodeVisitor):
 
     def visit_SubroutineCall(self, node: SubroutineCall):
         #print(f"called {self.visit(node.subroutine_token)}({', '.join([str(n.value.value) for n in node.parameters])})")
-        function = self.visit(node.subroutine_token)
-        
+        function = self.visit(node.subroutine_token) # the subroutine token is a SubroutineDefinition when it shouldn't be?
+
         if isinstance(function, Record):
             return self.create_RecordObject(node, function)
         
         elif isinstance(function, Subroutine):
             #node.subroutine_token.value
+            old_scope = self.current_scope
+            if function.scopeBase:
+                #print(f"Switching to scope {function.scopeBase.name}")
+                self.current_scope = function.scopeBase # move into functions module level scope
+            
             function_scope = VariableScope("function_scope", self.current_scope)
             
             if function.classBase:
@@ -1213,21 +1402,25 @@ class Interpreter(NodeVisitor):
             self.RETURN = False
             self.visit(function.compound)
             self.RETURN = False
-            result = self.RETURN_VALUE
+            result = self.RETURN_VALUE or NoneObject()
             self.RETURN_VALUE = None
             self.current_scope = self.current_scope.enclosing_scope
 
             #print(function_scope._variables)
+            self.current_scope = old_scope # swap back scope
             return result
         
         elif isinstance(function, ClassDefinition):
             cls = function
             # need a variable pointing to the init function, this doesn't work
-            tok = deepcopy(node.subroutine_token)
-            tok.array_indexes.append(Object.create("INIT"))
-            temp = SubroutineCall(tok, node.parameters)
+            s = SubroutineCall(None, node.parameters)
             #print("creating class instance...")
-            return self.create_ClassInstance(temp, cls)
+            return self.create_ClassInstance(s, cls)
+        elif function is None:
+            raise InterpreterError("subroutine is null!")
+            print("ERROR, subroutine_token is none! ", node.subroutine_token, function, isinstance(node.subroutine_token, Subroutine))
+            for prop in dir(node):
+                print(f"-- {prop}: {getattr(node, prop)}")
         else:
             parameters = [self.visit(p.value) for p in node.parameters]
             return function(*parameters)
@@ -1301,6 +1494,7 @@ class Interpreter(NodeVisitor):
         for v in node.static_values:
             node.properties[v.left.value] = self.visit(v.right)
         for f in node.subroutines:
+            f.__class__ = Subroutine
             f.classBase = node
             node.properties[f.token.value] = f
         #print(node.properties)
@@ -1315,13 +1509,80 @@ class Interpreter(NodeVisitor):
         initialise_function = class_instance.properties.get("INIT")
         if initialise_function:
             node.subroutine_token = initialise_function
+            # something breaks with classes - need to fix
             self.visit(node)
 
         return class_instance
     
-    def interpret(self):
-        tree = self.parser.parse()
-        global_scope = VariableScope("global", None)
+    def visit_Import(self, node: Import):
+        #print(self.path)
+        actual_location = self.visit(node.location).value
+        actual_target = self.visit(node.target).value if node.target != None else None
+        
+        module_location = None
+        isPython = False
+        _break = False
+        for loc in self.path.value:
+            loc = loc.value
+            for f in glob.glob(os.path.join(loc, "*.ecp")) + glob.glob(os.path.join(loc, "*.py")):
+                if f.endswith(os.path.normpath(actual_location) + ".ecp"):
+                    #print(f"found target at location {f}")
+                    module_location = f
+                    _break = True
+                    break
+                if f.endswith(os.path.normpath(actual_location) + ".py"):
+                    module_location = f
+                    _break = True
+                    isPython = True
+                    break
+            if _break:
+                break
+        else:
+            raise InterpreterError(f"module '{actual_location}' not found.")
+        
+        if not actual_target:
+            actual_target = os.path.basename(actual_location)
+        
+        #print(f"import {actual_location} as {actual_target}")
+
+        # need to be able to have variable scopes imported.
+        # all the code from that scope has to access it's variables like it is the global scope
+        # not sure how to do this...
+        # this works.
+
+        
+        if isPython:
+            spec = importlib.util.spec_from_file_location(actual_target, module_location)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            modules = {name: c for name, c in inspect.getmembers(module, inspect.isclass) if issubclass(c, BuiltinModule) and c != BuiltinModule and name == os.path.basename(actual_location)}
+            for name, c in modules.items():
+                v = Var(Token(actual_target, TokenType.ID))
+                self.current_scope.insert(v, c(None))
+        else:
+            # doing the importing
+            old_scope = self.current_scope
+            if os.path.exists(module_location):
+                with open(module_location) as f:
+                    data = f.read()
+
+                i = Interpreter(tracer=None, location=os.path.dirname(module_location), name=os.path.basename(module_location))
+                i.interpret(Parser(Lexer().lexString(data)).parse())
+
+                Interpreter.__interpreter__ = self
+                i.current_scope.name = f"module:{actual_target}"
+                self.current_scope.insert(Var(Token(actual_target, TokenType.ID)), i.current_scope)
+
+            else:
+                raise InterpreterError(f"module '{f}' not found.")
+
+
+            self.current_scope = old_scope
+
+    
+    def interpret(self, parseTree: AST):
+        tree = parseTree
+        global_scope = VariableScope(f"global:{self.name}", None)
         self.current_scope = global_scope
 
 

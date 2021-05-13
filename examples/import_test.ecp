@@ -1,0 +1,11 @@
+IMPORT "/import_me" AS "m"
+OUTPUT m.a
+m.get_a()
+m.a := 2
+m.get_a()
+
+IMPORT "pyimport" AS "e"
+OUTPUT e.sqrt(2)
+
+IMPORT "math"
+OUTPUT math.sqrt(2)

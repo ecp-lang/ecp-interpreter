@@ -1,0 +1,11 @@
+#b := 0
+#FOR i := 1 TO 10000
+#    b := i + i
+#ENDFOR
+l := []
+FOR i := 1 TO 10000
+    l.append(i)
+ENDFOR
+
+#a := 1 + 1.1 + 2.1
+#OUTPUT a

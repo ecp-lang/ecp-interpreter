@@ -1,0 +1,24 @@
+1 + 1
+a := [1,2,3][0]
+OUTPUT a
+b := [1,2,3]
+OUTPUT b[0]
+
+SUBROUTINE something()
+  RETURN ["ab"]
+ENDSUBROUTINE
+
+OUTPUT something()[0][1]
+something()[0]
+
+SUBROUTINE s()
+    ee := 1
+    SUBROUTINE s2()
+        OUTPUT "- ee is", ee
+        RETURN "bbb"
+    ENDSUBROUTINE
+
+    RETURN s2
+ENDSUBROUTINE
+
+OUTPUT s()()

@@ -12,3 +12,6 @@ executables/ecp
 *.zip
 *.dot
 *.png
+bin
+obj
+*.egg-info/

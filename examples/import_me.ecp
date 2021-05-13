@@ -1,0 +1,5 @@
+a := 1
+
+SUBROUTINE get_a()
+    OUTPUT "a is", a
+ENDSUBROUTINE

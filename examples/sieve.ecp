@@ -1,3 +1,5 @@
+IMPORT "math"
+
 SUBROUTINE eratosthenes(n)
     bits := []
     FOR i := 1 TO n

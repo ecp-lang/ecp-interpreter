@@ -1,3 +1,5 @@
+IMPORT "math"
+
 a := 1
 b := []
 
@@ -20,4 +22,4 @@ OUTPUT Integer(3)
 
 CONSTANT a := 5
 
-OUTPUT a
+OUTPUT a + (math).sqrt(5)

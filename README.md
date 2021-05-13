@@ -16,7 +16,7 @@ We're designing the language to be more like a set of rules than a specific piec
 # Usage
 ## Command Line arguments
 ```
-usage: ecp.py [-h] [--debug] [--trace [TRACE [TRACE ...]]] [--tracecompact] [--pause] [--version] [inputfile]
+usage: python -m ecp [-h] [--debug] [--trace [TRACE [TRACE ...]]] [--tracecompact] [--pause] [--version] [inputfile]
 
 ECP interpreter
 
@@ -32,16 +32,15 @@ optional arguments:
   --pause               pause on completion
   --version             show program's version number and exit
 ```
-A live version of the interpreter can be found at http://conqu3red.pythonanywhere.com/
 
 # Installation
-## Using the installer
-Go the the [latest release](https://github.com/Conqu3red/pseudocode-interpreter/releases/latest) and download `ECPSetup.exe`, this is the installer which will install the ECP interpreter. The installer will setup the association with the ecp file type so that you can just double click on ecp files to run them.
-## Downloading the latest build
-Iy you don't want to use the installer you can download the zip file called `ecp.zip` from the latest release, this contains the interpreter executable. It is reccomended that you add the folder with this exe to your PATH so that you can execute ecp files using ecp from any location.
-## Running the source python code
-if you don't want to use the exe then you can also just use the source python code. You will require python 3.7+ for it to work. Download this repository and to run ecp files change directory to src and run `python ecp.py <file_path>` or omit the file path to see other parameters.
-
+```
+pip install py-ecp
+```
+## Running
+```
+python -m ecp path/to/ecp/file.ecp
+```
 # MORE COMING SOON!
 
 
