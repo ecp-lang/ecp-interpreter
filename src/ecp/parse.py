@@ -188,8 +188,18 @@ class Import(AST):
         self.target = target
 
 
+class PropertyIndex(AST):
+    def __init__(self, node):
+        self.node = node
+
+
+class ValueIndex(AST):
+    def __init__(self, node):
+        self.node = node
+
+
 class IndexedItem(AST):
-    def __init__(self, node: AST, indexes: List[AST]):
+    def __init__(self, node: AST, indexes: List[Union[PropertyIndex, ValueIndex]]):
         self.node = node
         self.indexes = indexes
 
@@ -565,8 +575,11 @@ class Parser:
             var = self.variable()
             if self.current_token.type == TokenType.LPAREN:
                 node = self.subroutine_call(var)
-            else:
+            elif self.current_token.type == TokenType.ASSIGN:
+                # only happen if next token is assignment
                 node = self.assignment_statement(var)
+            else:
+                node = var
         elif self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
         elif self.current_token.type == TokenType.IF:
@@ -629,9 +642,7 @@ class Parser:
         return node
     
     def process_indexing(self, node):
-        # I want to support something like this but for function calls as well
-        # so something(1)() etc
-        # functions scope base should be where they are defined!
+        # should split into types
         indexes = []
         while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
             if self.current_token.type == TokenType.LS_PAREN:
@@ -700,6 +711,7 @@ class Parser:
         
         while self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN, TokenType.LPAREN):
             if self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN):
+                # would like to split these so something.something indicates a property and something["something"] is value
                 node = self.process_indexing(node)
             else:
                 node = self.subroutine_call(node)
@@ -1547,9 +1559,6 @@ class Interpreter(NodeVisitor):
                 i.interpret(Parser(Lexer().lexString(data)).parse())
 
                 Interpreter.__interpreter__ = self
-                m = Module({})
-                for k,v in i.current_scope._variables.items():
-                    m[StringObject(k)] = v
                 i.current_scope.name = f"module:{actual_target}"
                 self.current_scope.insert(Var(Token(actual_target, TokenType.ID)), i.current_scope)
 
