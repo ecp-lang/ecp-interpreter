@@ -3,7 +3,7 @@ CC BY-SA 2021 Alfred Taylor & Conqu3red
 
 # **Extended Compiler-Friendly Pseudocode V1.0  (CP/ECP/ECFP/EECP)**
 
-## `THIS CODE IS IN A VERY INCOMPLETE STATE, PLEASE EXPECT LIMITED FUNCTIONALITY.`
+## `PLEASE EXPECT LIMITED FUNCTIONALITY.`
 
 ## Introduction:
 
@@ -53,8 +53,7 @@ Go the the [latest release](https://github.com/Conqu3red/pseudocode-interpreter/
 Iy you don't want to use the installer you can download the zip file called `ecp.zip` from the latest release, this contains the interpreter executable. It is reccomended that you add the folder with this exe to your PATH so that you can execute ecp files using ecp from any location.
 ## Running the source python code
 if you don't want to use the exe then you can also just use the source python code. You will require python 3.7+ for it to work. Download this repository and to run ecp files change directory to src and run `python ecp.py <file_path>` or omit the file path to see other parameters.
-## Building from source
-to build the exe and installer first clone this repo. Then navigate to `win-src` and execute `compile.bat`. The installer file will be placed in `installer/Output` and the exe and its requirements will be located in `executables/ecp`
+
 # MORE COMING SOON!
 
 
