@@ -10,7 +10,7 @@ setuptools.setup(
     description="ECP programming language",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Conqu3red/pseudocode-interpreter",
+    url="https://github.com/ecp-lang/ecp-interpreter",
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
