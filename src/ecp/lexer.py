@@ -75,6 +75,7 @@ class TokenType(Enum):
     RECORD = "RECORD"
     IMPORT = "IMPORT"
     AS = "AS"
+    NONE = "NONE"
 
 class Token:
     def __init__(self, value, _type, lineno=0, column=0):
@@ -147,6 +148,7 @@ keywords = {
     "USERINPUT": TokenType.MAGIC,
     "False": TokenType.BOOLEAN,
     "True": TokenType.BOOLEAN,
+    "None": TokenType.NONE,
 
     "IF": TokenType.IF,
     "THEN": TokenType.THEN,

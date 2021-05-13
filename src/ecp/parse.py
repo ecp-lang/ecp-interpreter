@@ -338,8 +338,11 @@ class DictionaryObject(Object):
     def __setitem__(self, index, value):
         self.value[index] = value
 
-class Module(DictionaryObject):
-    pass
+
+class NoneObject(Object):
+    def __init__(self, value=None):
+        super().__init__(None)
+
 
 class Record(Object):
     def __init__(self, token):
@@ -402,12 +405,13 @@ class BuiltinModule(Object):
         super().__init__(*args, **kwargs)
 
 Object.associations = {
-    "int":   IntObject,
-    "float": FloatObject,
-    "bool":  BoolObject,
-    "str":   StringObject,
-    "list":  ArrayObject,
-    "dict":  DictionaryObject,
+    "int":       IntObject,
+    "float":     FloatObject,
+    "bool":      BoolObject,
+    "str":       StringObject,
+    "list":      ArrayObject,
+    "dict":      DictionaryObject,
+    "NoneType":  NoneObject
 }
 
 Object.types = {
@@ -423,8 +427,9 @@ Object.types = {
 TokenConversions = {
     TokenType.INT: int,
     TokenType.FLOAT: float,
-    TokenType.BOOLEAN: bool,
-    TokenType.STRING: str
+    TokenType.BOOLEAN: lambda s: False if s.lower() == "false" else True,
+    TokenType.STRING: str,
+    TokenType.NONE: lambda s: None
 }
 
         
@@ -682,7 +687,7 @@ class Parser:
         elif token.type == TokenType.NOT:
             self.eat(TokenType.NOT)
             node = UnaryOp(token, self.factor())
-        elif token.type in (TokenType.INT, TokenType.FLOAT, TokenType.BOOLEAN, TokenType.STRING):
+        elif token.type in TokenConversions.keys():
             self.eat(token.type)
             node = Object.create(TokenConversions[token.type](token.value))
         
@@ -1241,6 +1246,9 @@ class Interpreter(NodeVisitor):
     def visit_DictionaryObject(self, node: Object):
         return node
     
+    def visit_NoneObject(self, node: Object):
+        return node
+    
     def visit_RecordObject(self, node: Object):
         return node
     
@@ -1394,7 +1402,7 @@ class Interpreter(NodeVisitor):
             self.RETURN = False
             self.visit(function.compound)
             self.RETURN = False
-            result = self.RETURN_VALUE
+            result = self.RETURN_VALUE or NoneObject()
             self.RETURN_VALUE = None
             self.current_scope = self.current_scope.enclosing_scope
 
