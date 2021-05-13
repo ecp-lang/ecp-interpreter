@@ -176,8 +176,6 @@ class SubroutineDefinition(Subroutine):
 
 class SubroutineCall(AST):
     def __init__(self, subroutine_token, parameters):
-        if subroutine_token is None:
-            raise "No subroutine Token!"
         self.subroutine_token = subroutine_token
         self.parameters = parameters
 
@@ -265,7 +263,7 @@ class Object(AST):
         if isinstance(other, Object):
             return self.value == other.value
         else:
-            return other.__eq__(self)
+            return other.__eq__(self.value)
     
     def __ne__(self, other):
         return not (self == other)
@@ -634,11 +632,11 @@ class Parser:
         while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
             if self.current_token.type == TokenType.LS_PAREN:
                 self.eat(TokenType.LS_PAREN)
-                node.indexes.append(self.expr())
+                node.indexes.append(ValueIndex(self.expr()))
                 self.eat(TokenType.RS_PAREN)
             elif self.current_token.type == TokenType.DOT:
                 self.eat(TokenType.DOT)
-                node.indexes.append(self.id())
+                node.indexes.append(PropertyIndex(self.id()))
         return node
     
     def process_indexing(self, node):
@@ -647,11 +645,11 @@ class Parser:
         while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
             if self.current_token.type == TokenType.LS_PAREN:
                 self.eat(TokenType.LS_PAREN)
-                indexes.append(self.expr())
+                indexes.append(ValueIndex(self.expr()))
                 self.eat(TokenType.RS_PAREN)
             elif self.current_token.type == TokenType.DOT:
                 self.eat(TokenType.DOT)
-                indexes.append(self.id())
+                indexes.append(PropertyIndex(self.id()))
         return IndexedItem(node, indexes)
     
     def id(self):
@@ -1046,35 +1044,33 @@ class VariableScope(object):
     def __init__(self, name, enclosing_scope):
         self.name = name
         self.enclosing_scope = enclosing_scope
-        self._variables = {}
+        self.properties = {}
     
     def insert(self, var, value):
         if Interpreter.__interpreter__.tracer:
             Interpreter.__interpreter__.tracer.onchange(var.value, value)
-        self._variables[var.value] = value
+        self.properties[var.value] = value
     
     def get(self, var):
-        value = self._variables.get(var.value)
-        if value != None:
-            return value
-        
-        if value is None:
+        if var.value not in self.properties.keys():
             while self.enclosing_scope != None:
                 return self.enclosing_scope.get(var)
-        
+        else:
+            value = self.properties.get(var.value)
+            return value
         raise InterpreterError(f"variable {var.value} does not exist")
     
     def __get__(self, key, default):
-        return self._variables[key.value]
+        return self.properties[key.value]
     
     def __set__(self, key, value):
-        self._variables[key.value] = value
+        self.properties[key.value] = value
     
     def __getitem__(self, index):
-        return self._variables[index.value]
+        return self.properties[index.value]
     
     def __setitem__(self, index, value):
-        self._variables[index.value] = value
+        self.properties[index.value] = value
 
 class NodeVisitor(object):
     def visit(self, node):
@@ -1262,19 +1258,23 @@ class Interpreter(NodeVisitor):
     
     def set_element(self, L, index, value):
         # function for recersively changing a object property
-        target = self.visit(index[0])
+        i = index[0]
+        target = self.visit(i.node)
         if len(index) < 2:
-            if isinstance(target.value, int):
+            if isinstance(i, ValueIndex):
                 L[target] = value
-            else:
-                L[target] = value
+            elif isinstance(i, PropertyIndex):
+                L.properties[target] = value
         else:
-            L[target] = self.set_element(L[target], index[1:], value)
+            if isinstance(i, ValueIndex):
+                L[target] = self.set_element(L[target], index[1:], value)
+            elif isinstance(i, PropertyIndex):
+                L.properties[target] = self.set_element(L[target], index[1:], value)
         return L
     
     def visit_Assign(self, node):
         var_name = node.left.value
-        if var_name in self.current_scope._variables:
+        if var_name in self.current_scope.properties:
             val = self.visit_Var(node.left, traverse_lists=False)
             #print([self.visit(n) for n in node.left.indexes])
             if len(node.left.indexes) > 0:
@@ -1295,9 +1295,13 @@ class Interpreter(NodeVisitor):
         #print(f"val type: {type(val)}")
         if traverse_lists:
             for i in node.indexes:
-                target = self.visit(i)
-                
-                val = val[target]
+                target = i
+                if isinstance(target, ValueIndex):
+                    val = val[self.visit(target.node)]
+                elif isinstance(target, PropertyIndex):
+                    val = val.properties[self.visit(target.node)]
+                else:
+                    raise InterpreterError(f"Invalid index '{target}' of type {type(target)}")
                 # when a StringObject is sliced a string is returned but we want a StringObject
                 #print(type(val))
                 if not isinstance(val, (Object,)):
@@ -1312,9 +1316,10 @@ class Interpreter(NodeVisitor):
         ret = node.node
 
         for index in node.indexes:
-            target = self.visit(index)
-
-            ret = Object.create(self.visit(ret)[target])
+            if isinstance(index, ValueIndex):
+                ret = Object.create(self.visit(ret)[self.visit(index.node)])
+            if isinstance(index, PropertyIndex):
+                ret = Object.create(self.visit(ret).properties[self.visit(index.node)])
 
         return ret
     
@@ -1400,11 +1405,9 @@ class Interpreter(NodeVisitor):
         elif isinstance(function, ClassDefinition):
             cls = function
             # need a variable pointing to the init function, this doesn't work
-            tok = deepcopy(node.subroutine_token)
-            tok.indexes.append(Object.create("INIT"))
-            temp = SubroutineCall(tok, node.parameters)
+            s = SubroutineCall(None, node.parameters)
             #print("creating class instance...")
-            return self.create_ClassInstance(temp, cls)
+            return self.create_ClassInstance(s, cls)
         elif function is None:
             raise InterpreterError("subroutine is null!")
             print("ERROR, subroutine_token is none! ", node.subroutine_token, function, isinstance(node.subroutine_token, Subroutine))
