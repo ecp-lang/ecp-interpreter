@@ -1,7 +1,7 @@
 # pseudocode-interpreter
 CC BY-SA 2021 Alfred Taylor & Conqu3red 
 
-# **Extended Compiler-Friendly Pseudocode V1.0  (CP/ECP/ECFP/EECP)**
+# **Extended Computer-Friendly Pseudocode V1.0  (CP/ECP/ECFP/EECP)**
 
 ## `PLEASE EXPECT LIMITED FUNCTIONALITY.`
 
