@@ -11,7 +11,7 @@ This is an adaptation of the pseudocode used by the AQA GCSE testing body (found
 
 **Other Language Support:**
 
-We're designing the language to be more like a set of rules than a specific piece of software, although the software bundled in this repo is supported by us. It can be interpreted, compiled, based off C, based, off python, and more, if you can write the software to run it. That's why "interpreter code" is used, for future proofing and cross compatibility.
+We're designing the language to be more like a set of rules than a specific piece of software, although the software bundled in this repo is supported by us. It can be interpreted, compiled, based off C, based off python, based off java , and more, if you can write the software to execute it.
 
 # Usage
 ## Command Line arguments
