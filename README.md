@@ -7,19 +7,7 @@ CC BY-SA 2021 Alfred Taylor & Conqu3red
 
 ## Introduction:
 
-This is an adaptation of the pseudocode used by the AQA GCSE testing body (found [here](https://filestore.aqa.org.uk/resources/computing/AQA-8525-TG-PC.PDF)) that has had its syntax tweaked for use in a compiler and had some additional functionality added. The language will be fully Turing complete. Pseudocode found in tests is compatible with ECP. It is procedurally based, and shares similarities with python.
-
-#### Unique Features/Future Features:
-
-Apart from its basis in real pseudocode, there are multiple non-standard features, such as:
-
-**Headers:**
-
-Headers are pieces of code that can directly address the interpreter, negating the need for a CLI. They can be used to import libraries, set the folder of execution, and more. They take advantage of interpreter code.
-
-**Magic Snippets:**
-
-Magic snippets are built-in functions, classes and libraries that can run interpreter code, libraries written in the interpreter language, and other functions that can be added onto with libraries.
+This is an adaptation of the pseudocode used by the AQA GCSE testing body (found [here](https://filestore.aqa.org.uk/resources/computing/AQA-8525-TG-PC.PDF)) that has had its syntax tweaked for use in a compiler and had some additional functionality added. The language will be fully Turing complete. Pseudocode found in tests is compatible with ECP. It is procedurally based, and shares similarities with python (It is programmed on python, after all.) It is intended as a scripting language, that is separate from python, but has the same basic functionality, whilst maintaining some resemblance of simplicity. Considering it is entirely written in python, it is not for use in situations where speed is a priority.
 
 **Other Language Support:**
 
