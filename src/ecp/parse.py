@@ -403,6 +403,12 @@ class ClassInstance(Object):
 class BuiltinModule(Object):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+    
+    def __str__(self):
+        return f"<BuiltinModule '{type(self).__name__}'>"
+    
+    def __repr__(self):
+        return f"<BuiltinModule '{type(self).__name__}'>"
 
 Object.associations = {
     "int":       IntObject,
@@ -410,6 +416,7 @@ Object.associations = {
     "bool":      BoolObject,
     "str":       StringObject,
     "list":      ArrayObject,
+    "tuple":      ArrayObject,
     "dict":      DictionaryObject,
     "NoneType":  NoneObject
 }
@@ -1254,6 +1261,9 @@ class Interpreter(NodeVisitor):
     
     def visit_method(self, method):
         return method
+    
+    def visit_function(self, function):
+        return function
     
     def visit_Compound(self, node: Compound):
         for child in node.children:
