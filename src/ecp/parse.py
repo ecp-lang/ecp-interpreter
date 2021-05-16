@@ -416,7 +416,7 @@ Object.associations = {
     "bool":      BoolObject,
     "str":       StringObject,
     "list":      ArrayObject,
-    "tuple":      ArrayObject,
+    "tuple":     ArrayObject,
     "dict":      DictionaryObject,
     "NoneType":  NoneObject
 }
@@ -581,24 +581,15 @@ class Parser:
         return results
     
     def statement(self):
-        if self.current_token.type in (TokenType.ID, TokenType.CONSTANT):
-            var = self.variable()
-            if self.current_token.type == TokenType.LPAREN:
-                node = self.subroutine_call(var)
-            elif self.current_token.type == TokenType.ASSIGN:
-                # only happen if next token is assignment
-                node = self.assignment_statement(var)
-            else:
-                node = var
-        elif self.current_token.type == TokenType.MAGIC:
+        if self.current_token.type == TokenType.MAGIC:
             node = self.magic_function()
         elif self.current_token.type == TokenType.IF:
             node = self.if_statement()
-            self.eat(TokenType.KEYWORD)
+            self.eat(TokenType.END)
             return node
         elif self.current_token.type == TokenType.WHILE:
             node = self.while_statement()
-            self.eat(TokenType.KEYWORD)
+            self.eat(TokenType.END)
             return node
         elif self.current_token.type == TokenType.REPEAT:
             return self.repeat_until_statement()
@@ -712,10 +703,12 @@ class Parser:
             self.eat(TokenType.RC_BRACE)
         elif token.type == TokenType.MAGIC:
             node = self.magic_function()
-        elif token.type == TokenType.ID:
+        elif token.type in (TokenType.ID, TokenType.CONSTANT):
             node = self.variable()
             if self.current_token.type == TokenType.LPAREN:
                 node = self.subroutine_call(node)
+            elif self.current_token.type == TokenType.ASSIGN:
+                node = self.assignment_statement(node)
         else:
             return
         
@@ -842,7 +835,7 @@ class Parser:
                 parameters.append(self.declare_param())
         self.eat(TokenType.RPAREN)
         compound = self.compound()
-        self.eat(TokenType.KEYWORD)
+        self.eat(TokenType.END)
         return SubroutineDefinition(token, parameters, compound)
 
     def subroutine_call(self, var):
@@ -986,7 +979,7 @@ class Parser:
             self.eat_gap()
             f.loop = self.compound()
         
-        self.eat(TokenType.KEYWORD)
+        self.eat(TokenType.END)
         return f
     
     def record_definition(self):
@@ -995,7 +988,7 @@ class Parser:
         token = self.id()
         node = Record(token)
         self.eat_gap()
-        while self.current_token.type != TokenType.KEYWORD:
+        while self.current_token.type != TokenType.END:
             self.eat_gap()
             node.parameters.append(self.variable().value)
             if self.current_token.type == TokenType.COLON:
@@ -1004,7 +997,7 @@ class Parser:
             self.eat_gap()
         
         self.eat_gap()
-        self.eat(TokenType.KEYWORD)
+        self.eat(TokenType.END)
         return node
     
     def try_catch(self):
@@ -1012,7 +1005,7 @@ class Parser:
         try_compound = self.compound()
         self.eat(TokenType.CATCH)
         catch_compound = self.compound()
-        self.eat(TokenType.KEYWORD)
+        self.eat(TokenType.END)
 
         return TryCatch(try_compound, catch_compound)
     
@@ -1031,7 +1024,7 @@ class Parser:
                 static_values.append(self.assignment_statement(v))
             self.eat_gap()
         self.eat_gap()
-        self.eat(TokenType.KEYWORD)
+        self.eat(TokenType.END)
 
         return ClassDefinition(variable, static_values, subroutines)
     

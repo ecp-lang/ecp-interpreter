@@ -1,5 +1,5 @@
 from .lexer import *
-from .parse import *
+from .topython import *
 from . import __version__
 import argparse
 from .tracker import Tracker
@@ -24,9 +24,6 @@ def main():
         name = os.path.basename(options.inputfile.name)
         options.inputfile.close()
 
-        l = Lexer()
-        result = l.lexString(string)
-
         def debugOutput(result):
             table = []
             for i in result.tokens:
@@ -34,15 +31,10 @@ def main():
             print(tabulate(table, tablefmt="github", headers=["VALUE", "TYPE"]))
 
         if options.debug:
-            debugOutput(result)
-
-        p = Parser(result)
-        i = Interpreter(tracer=Tracker(options.trace, options.tracecompact), location=loc, name=name)
-
-        i.interpret(p.parse())
-        #print("global variables:", i.current_scope)
-        if should_trace:
-            print(i.tracer.displayTraceTable(variables=options.trace))
+            pass
+            #debugOutput(result)
+        sys.path.insert(0, loc)
+        ecp(string, name=name, scope=globals())
         if options.pause:
             input("Press enter to exit...")
 
@@ -52,11 +44,6 @@ def main():
         string = ""
         multiple_line = False
         prompt = ">>> "
-        l = Lexer()
-        result = l.lexString("")
-        p = Parser(result)
-        i = Interpreter()
-        i.interpret(p.parse())
         while True:
             if not multiple_line:
                 string = input(">>> ")
@@ -73,10 +60,7 @@ def main():
                     string += "\n"
 
             try:
-                l = Lexer()
-                p = Parser(l.lexString(string))
-                tree = Parser(l.lexString(string)).parse()
-                i.visit(tree)
+                ecp(string, name="<stdin>", scope=globals())
             except:
                 print_exc(0)
 

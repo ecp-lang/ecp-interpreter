@@ -1,4 +1,4 @@
-IMPORT "math"
+PY("import math")
 
 SUBROUTINE isPrime(n: Integer)
     IF n = 1 THEN

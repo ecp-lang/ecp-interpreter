@@ -9,7 +9,9 @@ RECORD Car
     noOfDoors : Integer
 ENDRECORD
 
-myCar := Car('Ford', 'Focus', 1399.99, 5)
+myCar := Car('Ford', 'Focus', 'ABC123', 1399.99, 5)
+OUTPUT myCar.make
+myCar.make := "_Ford"
 OUTPUT myCar.make
 
 RECORD b

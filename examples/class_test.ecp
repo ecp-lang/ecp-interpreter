@@ -2,21 +2,21 @@ CLASS a
 
     temp := 1
 
-    SUBROUTINE INIT()
-        this.b := 0
+    SUBROUTINE __init__(self)
+        self.b := 0
         OUTPUT "init"
     ENDSUBROUTINE
 
-    SUBROUTINE STR()
+    SUBROUTINE __str__(self)
         RETURN "<aaa>"
     ENDSUBROUTINE
 
-    SUBROUTINE REPR()
-        RETURN this.STR()
+    SUBROUTINE __repr__(self)
+        RETURN self.__str__()
     ENDSUBROUTINE
 
-    SUBROUTINE inc_b(value)
-        this.b := this.b + value
+    SUBROUTINE inc_b(self, value)
+        self.b := self.b + value
     ENDSUBROUTINE
 ENDCLASS
 

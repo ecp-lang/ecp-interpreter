@@ -55,7 +55,7 @@ class TokenType(Enum):
     SUBROUTINE = "SUBROUTINE"
 
     ID = "ID"
-    KEYWORD = "KEYWORD"
+    END = "END"
     MAGIC = "MAGIC"
     IF = "IF"
     ELSE = "ELSE"
@@ -140,7 +140,7 @@ symbols = { # single char symbols
 QUOTE_CHARS = ("'", "\"")
 keywords = {
     "SUBROUTINE": TokenType.SUBROUTINE, 
-    "ENDSUBROUTINE": TokenType.KEYWORD, 
+    "ENDSUBROUTINE": TokenType.END, 
     "RETURN": TokenType.MAGIC,
     "CONTINUE": TokenType.MAGIC,
     "BREAK": TokenType.MAGIC,
@@ -153,10 +153,10 @@ keywords = {
     "IF": TokenType.IF,
     "THEN": TokenType.THEN,
     "ELSE": TokenType.ELSE,
-    "ENDIF": TokenType.KEYWORD,
+    "ENDIF": TokenType.END,
 
     "WHILE": TokenType.WHILE,
-    "ENDWHILE": TokenType.KEYWORD,
+    "ENDWHILE": TokenType.END,
 
     "REPEAT": TokenType.REPEAT,
     "UNTIL": TokenType.UNTIL,
@@ -165,18 +165,19 @@ keywords = {
     "TO": TokenType.TO,
     "IN": TokenType.IN,
     "STEP": TokenType.STEP,
-    "ENDFOR": TokenType.KEYWORD,
+    "ENDFOR": TokenType.END,
     
     "RECORD": TokenType.RECORD,
-    "ENDRECORD": TokenType.KEYWORD,
+    "ENDRECORD": TokenType.END,
     "CONSTANT": TokenType.CONSTANT,
     "TRY": TokenType.TRY,
     "CATCH": TokenType.CATCH,
-    "ENDTRY": TokenType.KEYWORD,
+    "ENDTRY": TokenType.END,
     "CLASS": TokenType.CLASS,
-    "ENDCLASS": TokenType.KEYWORD,
+    "ENDCLASS": TokenType.END,
     "IMPORT": TokenType.IMPORT,
     "AS": TokenType.AS,
+    "END": TokenType.END
 }
 
 KEYWORDS = {**symbols, **keywords}

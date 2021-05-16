@@ -4,5 +4,5 @@ t := {
 }
 OUTPUT t
 OUTPUT t["a"]
-t.e := "123"
+t["e"] := "123"
 OUTPUT t
