@@ -34,7 +34,7 @@ def main():
             pass
             #debugOutput(result)
         sys.path.insert(0, loc)
-        ecp(string, name=name, scope=globals())
+        ecp(string, name=name, scope=globals(), trace=options.trace, tracecompact=options.tracecompact)
         if options.pause:
             input("Press enter to exit...")
 

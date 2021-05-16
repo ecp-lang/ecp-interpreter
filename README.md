@@ -13,6 +13,10 @@ This is an adaptation of the pseudocode used by the AQA GCSE testing body (found
 
 We're designing the language to be more like a set of rules than a specific piece of software, although the software bundled in this repo is supported by us. It can be interpreted, compiled, based off C, based off python, based off java , and more, if you can write the software to execute it.
 
+**How it works**
+
+ECP code is analysed and then parsed into a python AST (Abstract Syntax Tree). This can then be executed by the python interpreter. This allows near seamless integration with python and almost identical speed and behaviour.
+
 # Usage
 ## Command Line arguments
 ```
@@ -43,7 +47,7 @@ python -m ecp path/to/ecp/file.ecp
 ```
 
 ## Embedding ecp code in python files
-```
+```python
 from ecp import ecp
 
 ecp("""

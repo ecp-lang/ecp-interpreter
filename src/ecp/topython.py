@@ -1,5 +1,6 @@
 from .lexer import *
 from .parse import TokenConversions, ParseError
+from .tracker import Tracer
 import sys, os
 from math import sqrt
 from random import randint, uniform
@@ -754,7 +755,7 @@ class Namespace:
             setattr(self, k, v)
 
 
-def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope=None):
+def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope=None, trace=None, tracecompact=False):
     if text is None:
         with open(file, encoding="utf-8") as f:
             text = f.read()
@@ -762,11 +763,17 @@ def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope
         scope = {}
     if isinstance(scope, Namespace):
         scope = vars(scope)
+    if trace is None:
+        trace = []
     scope.update(globals())
     r = fix_missing_locations(ParseToPython(Lexer().lexString(text)).parse())
     if showAST:
         print(_dump(r, indent=2))
-    exec(compile(parse(r, mode="exec"), name, "exec"), scope)
+    if len(trace) > 0:
+        with Tracer(trace, compact=tracecompact):
+            exec(compile(parse(r, mode="exec"), name, "exec"), scope)
+    else:
+        exec(compile(parse(r, mode="exec"), name, "exec"), scope)
 
     return Namespace(**scope)
 

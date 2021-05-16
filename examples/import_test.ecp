@@ -4,7 +4,7 @@ m.get_a()
 m.a := 2
 m.get_a()
 
-exec("import pyimport as e")
+PY("import pyimport as e")
 OUTPUT e.sqrt(2)
 
 PY("import math")

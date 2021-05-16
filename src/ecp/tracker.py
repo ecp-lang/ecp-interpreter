@@ -50,3 +50,28 @@ class Tracker:
                 row.append(self.values.get(h, {}).get(i, ""))
             table.append(row)
         return tabulate(table, headers=headers, tablefmt=tablefmt)
+
+class Tracer(Tracker):
+    def __init__(self, variables: List[str], **kwargs):
+        super().__init__(variables, **kwargs)
+        self.variables = variables
+    
+    def tracer(self, frame, event, arg = None):
+        code = frame.f_code
+        line_no = frame.f_lineno
+        #self.onchange("_line_number", line_no)
+        for v in self.variables:
+            if len(self.values.get(v, {}).keys()) > 0:
+                if self.values[v][max(self.values[v].keys())] == frame.f_locals.get(v):
+                    continue
+            if v in frame.f_locals.keys():
+                self.onchange(v, frame.f_locals.get(v))
+        return self.tracer
+
+    def __enter__(self):
+        sys.settrace(self.tracer)
+        return self
+    
+    def __exit__(self, *args):
+        print(self.displayTraceTable())
+        sys.settrace(None)
