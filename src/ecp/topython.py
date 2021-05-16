@@ -1,3 +1,5 @@
+"""Converts a list of ECP tokens into a python AST and provides the environment for execution."""
+
 from .lexer import *
 from .parse import TokenConversions, ParseError
 from .tracker import Tracer
@@ -178,7 +180,7 @@ class ParseToPython:
     
     def statement(self):
         if self.current_token.type == TokenType.MAGIC:
-            node = self.magic_function()
+            node = Expr(value=self.magic_function())
         elif self.current_token.type == TokenType.IF:
             return self.if_statement()
         elif self.current_token.type == TokenType.WHILE:
@@ -421,7 +423,7 @@ class ParseToPython:
         elif token.value == "BREAK":
             return Break()
 
-        return Expr(value=Call(func=Name(id="_MAGIC_"+token.value, ctx=Load()), args=parameters, keywords=[]), lineno=token.lineno, col_offset=token.lineno)
+        return Call(func=Name(id="_MAGIC_"+token.value, ctx=Load()), args=parameters, keywords=[], lineno=token.lineno, col_offset=token.lineno)
     
     def declare_param(self):
         node = arg(arg=self.id())
@@ -754,6 +756,8 @@ class Namespace:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+def parse_ecp(text: str):
+    return fix_missing_locations(ParseToPython(Lexer().lexString(text)).parse())
 
 def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope=None, trace=None, tracecompact=False):
     if text is None:
@@ -766,7 +770,7 @@ def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope
     if trace is None:
         trace = []
     scope.update(globals())
-    r = fix_missing_locations(ParseToPython(Lexer().lexString(text)).parse())
+    r = parse_ecp(text)
     if showAST:
         print(_dump(r, indent=2))
     if len(trace) > 0:

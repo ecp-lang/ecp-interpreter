@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="py-ecp",
-    version="1.3.0b1",
+    version="1.3.0b2",
     author="Conqu3red",
     description="ECP programming language",
     long_description=long_description,
