@@ -64,6 +64,21 @@ ENDSUBROUTINE
 print(TotalOut(3, 4))
 ```
 
+## Converting ECp to python source code
+```
+python -m ecp path/to/ecp/file.ecp --topython
+```
+or:
+```python
+from ecp import to_py_source
+text = """
+SUBROUTINE DoSomething(a, b)
+    RETURN a + b
+ENDSUBROUTINE
+"""
+
+print(to_py_source(text))
+```
 # MORE COMING SOON!
 
 

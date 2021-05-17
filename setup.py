@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="py-ecp",
-    version="1.3.0b2",
+    version="1.3.0b3",
     author="Conqu3red",
     description="ECP programming language",
     long_description=long_description,
@@ -14,10 +14,8 @@ setuptools.setup(
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
-    package_data = {
-        "ecp": ["stdlib/*.*"]
-    },
     install_requires=[
-        "tabulate"
+        "tabulate",
+        "astor"
     ]
 )
