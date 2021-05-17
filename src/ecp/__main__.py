@@ -12,6 +12,7 @@ def main():
     parser.add_argument("--debug", action="store_true", help="show debug information like token list")
     parser.add_argument("--trace", action="store", nargs="*", default=[], help="space seperated names of the variables to be traced")
     parser.add_argument("--tracecompact", action="store_true", help="trace compactly")
+    parser.add_argument("--topython", action="store_true", help="Try to convert the ECP program to python source code")
     parser.add_argument("--pause", action="store_true", help="pause on completion")
     parser.add_argument('--version', action='version', version='%(prog)s v'+__version__)
 
@@ -34,7 +35,10 @@ def main():
             pass
             #debugOutput(result)
         sys.path.insert(0, loc)
-        ecp(string, name=name, scope=globals(), trace=options.trace, tracecompact=options.tracecompact)
+        if options.topython:
+            print(to_py_source(string))
+        else:
+            ecp(string, name=name, scope=globals(), trace=options.trace, tracecompact=options.tracecompact)
         if options.pause:
             input("Press enter to exit...")
 

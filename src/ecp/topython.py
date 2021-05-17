@@ -4,12 +4,19 @@ from .lexer import *
 from .parse import TokenConversions, ParseError
 from .tracker import Tracer
 import sys, os
+try:
+    import astor
+except ImportError:
+    print("astor module not found - will not be able to convert ECP to python source code")
+    astor = None
 from math import sqrt
 from random import randint, uniform
 from ast import *
 import ast
 _List = ast.List
 _Dict = ast.Dict
+
+BUILTIN_IMPORT = "from ecp.topython import *\n"
 
 TOKEN_TO_OP = {
     TokenType.ADD:     Add,
@@ -180,7 +187,9 @@ class ParseToPython:
     
     def statement(self):
         if self.current_token.type == TokenType.MAGIC:
-            node = Expr(value=self.magic_function())
+            node = self.magic_function()
+            if isinstance(node, expr):
+                node = Expr(value=node, lineno=node.lineno, col_offset=node.col_offset)
         elif self.current_token.type == TokenType.IF:
             return self.if_statement()
         elif self.current_token.type == TokenType.WHILE:
@@ -426,7 +435,7 @@ class ParseToPython:
         return Call(func=Name(id="_MAGIC_"+token.value, ctx=Load()), args=parameters, keywords=[], lineno=token.lineno, col_offset=token.lineno)
     
     def declare_param(self):
-        node = arg(arg=self.id())
+        node = arg(arg=self.id(), annotation=None)
         if self.current_token.type == TokenType.COLON:
             self.eat(TokenType.COLON)
             self.eat(TokenType.ID) # TYPE
@@ -457,7 +466,7 @@ class ParseToPython:
         self.eat(TokenType.END)
         return FunctionDef(
             name=token.value, 
-            args=arguments(args=parameters, posonlyargs=[], kwonlyargs=[], kw_defaults=[], defaults=[]), 
+            args=arguments(args=parameters, posonlyargs=[], kwonlyargs=[], kw_defaults=[], defaults=[], kwarg=None, vararg=None), 
             body=compound, 
             decorator_list=[], 
             returns=None, 
@@ -657,7 +666,7 @@ class ParseToPython:
             body=[
                 FunctionDef(
                     name="__init__", 
-                    args=arguments(args=[arg(arg='self')]+[arg(arg=p) for p in parameters], posonlyargs=[], kwonlyargs=[], kw_defaults=[], defaults=[]), 
+                    args=arguments(args=[arg(arg='self', annotation=None)]+[arg(arg=p, annotation=None) for p in parameters], posonlyargs=[], kwonlyargs=[], kw_defaults=[], defaults=[], kwarg=None, vararg=None), 
                     body=[
                         Assign(
                             targets=[
@@ -758,6 +767,14 @@ class Namespace:
 
 def parse_ecp(text: str):
     return fix_missing_locations(ParseToPython(Lexer().lexString(text)).parse())
+
+def to_py_source(text: Union[str, Module]):
+    code = text
+    if isinstance(text, str):
+        code = parse_ecp(text)
+    if astor is not None:
+        return BUILTIN_IMPORT + astor.to_source(code)
+    raise Exception("astor module not found - cannot convert ecp to python source code")
 
 def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope=None, trace=None, tracecompact=False):
     if text is None:
