@@ -107,81 +107,52 @@ def _dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
 Grammar for ECP
 
 
-program               :  compound
-
-compound              :  statement_list
-
-statement_list        :  (statement NEWLINE*)*
-
-statement             :  assignment_statement
-                      |  magic_function
-                      |  subroutine_call
-                      |  subroutine
-                      |  if_statement
-                      |  while_loop
-                      |  repeat_until_loop
-                      |  for_loop
-
-assignment_statement  :  variable ASSIGN expr
-
-magic_function        :  MAGIC ( expr ( COMMA expr )* )?
-
-subroutine_call       :  variable LPAREN ( param ( COMMA param )* )? RPAREN
-
-param                 :  expr
-
-subroutine            :  SUBROUTINE ID LPAREN ( param_definition ( COMMA parem_definition )* )? RPAREN compound ENDSUBROUTINE
-param_definition      :  variable
-
-
-if_statement          :  IF condition THEN compound ( else_if_statement | else_statement )? ENDIF
-else_if_statement     :  ELSE if_statement
-else_statement        :  ELSE compound
-
-for_loop              :  FOR assignment_statement TO expr (STEP expr)? compound ENDFOR
-                      |  FOR variable IN expr compound ENDFOR
-
-while_loop            :  WHILE expr compound ENDWHILE
-
-repeat_until_loop     :  REPEAT compound UNTIL expr
-
-record_definition     :  RECORD ID (variable)* ENDRECORD
-
-class_definition      :  CLASS ( subroutine | assignment_statement ) ENDCLASS
-
-import_statement      :  IMPORT expr (AS expr)
-
-try_catch             :  TRY compound CATCH compound ENDTRY
-
-expr                  :  term5
-
-term5                 :  term4  ( ( AND | OR            ) term4  )*
-term4                 :  term3  ( ( EQALITY_OP          ) term3  )*
-term3                 :  term2  ( ( ADD | SUB           ) term2  )*
-term2                 :  term   ( ( MUL | DIV | INT_DIV ) term   )*
-term                  :  factor ( ( POW | MOD           ) factor )*
-
-EQUALITY_OP           :  ( LT | LE | EQ | NE | GT | GE )
-
-
-factor                :  PLUS factor
-                      |  MINUS factor
-                      |  INTEGER_CONST
-                      |  REAL_CONST
-                      |  LPAREN expr RPAREN
-                      |  TRUE
-                      |  FALSE
-                      |  variable
-                      |  function_call
-                      |  array
-
-array                 :  LS_PAREN (expr (COMMA expr)*)? RS_PAREN
-
-dictionary            :  LC_BRACE ((expr COLON expr) (COMMA expr COLON expr)*)? RC_BRACE
-
-variable              :  (CONSTANT)? ID (targeter)* (COLON TYPE)?
-
-targeter              :  LS_PAREN expr RS_PAREN
+program                 :  compound
+compound                :  statement_list
+statement_list          :  NEWLINE* (statement NEWLINE*)*
+statement               :  magic_function
+                        |  if_statement | for_loop | while_loop | repeat_until_loop | record_definition | try_catch | suboroutine_definition | class_definition | import_statement | assignment_statement
+                        |  expr
+assignment_statement    :  variable (COLON ID)? ASSIGN expr
+variable                :  CONSTANT? ID indexing
+attr_index              :  DOT ID
+subscript_index         :  LS_PAREN expr RS_PAREN
+call                    :  LPAREN (expr (COMMA expr)* COMMA?)? RPAREN
+indexing                :  (attr_index | subscript_index | call)*
+factor                  :  factor_part indexing
+factor_part             :  PLUS factor
+                        |  SUB factor
+                        |  NOT factor
+                        |  INT
+                        |  FLOAT
+                        |  BOOLEAN
+                        |  STRING
+                        |  NONE
+                        |  LPAREN expr RPAREN
+                        |  array | dictionary | magic_function | variable
+term                    :  factor (POW term)?
+term2                   :  term ((MUL | DIV | INT_DIV | MOD) term)*
+term3                   :  term2 ((ADD | SUB) term2)*
+term4                   :  term3 ((LT | GT | LE | GE | EQ | NE) term3)*
+term5                   :  term4 ((AND | OR) term4)*
+expr                    :  term5
+magic_function          :  MAGIC (expr (COMMA expr)* COMMA?)?
+param_definition        :  ID (COLON ID)?
+_                       :  NEWLINE*
+suboroutine_definition  :  SUBROUTINE ID LPAREN (param_definition (COMMA param_definition)* COMMA?)? RPAREN compound END
+if_statement            :  IF expr _ THEN compound (elseif_statement | else_statement)? END
+elseif_statement        :  ELSE if_statement
+else_statement          :  ELSE compound
+while_loop              :  WHILE expr _ compound END
+repeat_until_loop       :  REPEAT _ compound _ UNTIL expr
+array                   :  LS_PAREN (_ expr (_ COMMA _ expr)* _ COMMA?)? _ RS_PAREN
+dictionary              :  LC_BRACE (_ expr _ COLON _ expr (_ COMMA _ expr _ COLON _ expr)* _ COMMA?)? _ RC_BRACE
+for_loop                :  FOR variable ASSIGN expr TO expr (STEP expr)? _ compound _ END
+                        |  FOR variable IN expr _ compound _ END
+record_definition       :  RECORD ID (_ variable (COLON ID)?)* _ END
+try_catch               :  TRY compound CATCH compound END
+class_definition        :  CLASS variable compound END
+import_statement        :  IMPORT expr (AS expr)?
 
 """
 
