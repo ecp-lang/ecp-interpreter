@@ -411,10 +411,6 @@ class ParseToPython(Parser):
         return node
     
     @grammar("NEWLINE*")
-    def gap(self, p):
-        pass
-
-    @grammar("NEWLINE*")
     def _(self, p):
         pass
 
@@ -438,7 +434,7 @@ class ParseToPython(Parser):
             col_offset=self.current_token.lineno
         )
  
-    @grammar("IF expr gap THEN compound ( elseif_statement | else_statement )? END")
+    @grammar("IF expr _ THEN compound ( elseif_statement | else_statement )? END")
     def if_statement(self, p):
         condition = p[1]
         consequence = p[4]
@@ -453,7 +449,7 @@ class ParseToPython(Parser):
     def else_statement(self, p):
         return p[1]
     
-    @grammar("WHILE expr gap compound END")
+    @grammar("WHILE expr _ compound END")
     def while_loop(self, p):
         token = self.current_token
         condition = p[1]
@@ -461,7 +457,7 @@ class ParseToPython(Parser):
         return While(test=condition, body=consequence, orelse=[], lineno=token.lineno, col_offset=token.column)
         # TODO: implement else after while and for loops
     
-    @grammar("REPEAT gap compound gap UNTIL expr")
+    @grammar("REPEAT _ compound _ UNTIL expr")
     def repeat_until_loop(self, p):
         token = self.current_token
         consequence = p[2]
@@ -477,7 +473,7 @@ class ParseToPython(Parser):
 
         return node
     
-    @grammar("LS_PAREN (gap expr ( gap COMMA gap expr)* gap COMMA? )? gap RS_PAREN")
+    @grammar("LS_PAREN (_ expr ( _ COMMA _ expr)* _ COMMA? )? _ RS_PAREN")
     def array(self, p):
         values = []
         if p[1] is not None and len(p[1]) > 1:
