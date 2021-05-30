@@ -1,349 +1,104 @@
-from tabulate import tabulate
-from dataclasses import dataclass
 from typing import *
-from enum import Enum
-import string
+from parsergen import *
+from tabulate import tabulate
 
-class TokenType(Enum):
-    ASSIGN = "ASSIGN"
-    OPERATOR = "OPERATOR"
+def use_name(name, *rules):
+    """Helper function for crating tokens which return their type as value
     
-    # operators
-    ADD = "ADD"
-    SUB = "SUB"
-    MUL = "MUL"
-    DIV = "DIV"
-    INT_DIV = "INT_DIV"
-    MOD = "MOD"
-    POW = "POW"
-
-    LT = "LT"
-    LE = "LE"
-    EQ = "EQ"
-    NE = "NE"
-    GT = "GT"
-    GE = "GE"
-    AND = "AND"
-    OR = "OR"
-    NOT = "NOT"
+    Usage:
+    >>> EQ = use_name("EQ", r"=")
+    """
+    def modifier(self, t):
+        t.value = name
+        return t
     
-    NEWLINE = "NEWLINE"
-    BRACKET = "BRACKET"
-    LPAREN = "LPAREN"
-    RPAREN = "RPAREN"
-    LS_PAREN = "LS_PAREN"
-    RS_PAREN = "RS_PAREN"
-    LC_BRACE = "LC_BRACE"
-    RC_BRACE = "RC_BRACE"
+    modifier.__name__ = name
 
-    STRING_QUOTE = "STRING_QUOTE"
-    BOOLEAN = "BOOLEAN"
-    COMMA = "COMMA"
-    COLON = "COLON"
-    DOT = "DOT"
-    TYPE = "TYPE"
+    return token(*rules)(modifier)
 
-    INVALID = "INVALID"
-    EOF = "EOF"
-
-    # types
-    FLOAT = "FLOAT"
-    INT = "INT"
-    STRING = "STRING"
-    ARRAY = "ARRAY"
-    BUILTIN_FUNCTION = "BUILTIN_FUNCTION"
-    SUBROUTINE = "SUBROUTINE"
-
-    ID = "ID"
-    END = "END"
-    MAGIC = "MAGIC"
-    IF = "IF"
-    ELSE = "ELSE"
-    THEN = "THEN"
-
-    WHILE = "WHILE"
-    REPEAT = "REPEAT"
-    UNTIL = "UNTIL"
-    FOR = "FOR"
-    TO = "TO"
-    IN = "IN"
-    STEP = "STEP"
-    CONSTANT = "CONSTANT"
-    TRY = "TRY"
-    CATCH = "CATCH"
-    CLASS = "CLASS"
-    RECORD = "RECORD"
-    IMPORT = "IMPORT"
-    AS = "AS"
-    NONE = "NONE"
-
-class Token:
-    def __init__(self, value, _type, lineno=0, column=0):
-        self.value = value
-        self.type = _type
-        self.lineno = lineno
-        self.column = column
+class EcpLexer(Lexer):
+    # symbols
+    ASSIGN  = r"←", r":="
+    EQ      = use_name("EQ",      r"="           )
+    ADD     = use_name("ADD",     r"\+"          )
+    POW     = use_name("POW",     r"\*\*", r"POW")
+    MUL     = use_name("MUL",     r"\*"          )
+    SUB     = use_name("SUB",     r"\-",   r"–"  )
+    INT_DIV = use_name("INT_DIV", r"DIV"         )
+    MOD     = use_name("MOD",     r"MOD"         )
+    DIV     = use_name("DIV",     r"/"           )
+    NE      = use_name("NE",      r"!=",   r"≠"  )
+    LE      = use_name("LE",      r"<=",   r"≤"  )
+    GE      = use_name("GE",      r">=",   r"≥"  )
+    LT      = use_name("LT",      r"<"           )
+    GT      = use_name("GT",      r">"           )
+    NOT     = use_name("NOT",     r"NOT"         )
+    OR      = use_name("OR",      r"OR"          )
+    AND     = use_name("AND",     r"AND"         )
     
-    def __str__(self):
-        return f"<Token(value={self.value}, type={self.type}, position={self.lineno}:{self.column})>"
-    
-    def __repr__(self):
-        return self.__str__()
-    
-    def error_format(self):
-        return f"'{self.value}' ({self.type})"
-    
-    @property
-    def pos(self):
-        return self.lineno, self.column
-
-symbols = { # single char symbols
-    "\u2190":  TokenType.ASSIGN,
-    ":=": TokenType.ASSIGN,
-    "=":  TokenType.EQ,
-    
-    "+":  TokenType.ADD,
-    "*":  TokenType.MUL,
-    "-":  TokenType.SUB,
-    "\u2013":  TokenType.SUB,
-    "DIV": TokenType.INT_DIV,
-    "MOD": TokenType.MOD,
-    "/":  TokenType.DIV,
-    "**": TokenType.POW,
-    "POW": TokenType.POW,
-    
-    "!=": TokenType.NE,
-    "<=": TokenType.LE,
-    ">=": TokenType.GE,
-    "<":  TokenType.LT,
-    ">":  TokenType.GT,
-    "\u2260":  TokenType.NE,
-    "\u2264":  TokenType.LE,
-    "\u2265":  TokenType.GE,
-    "NOT": TokenType.NOT,
-    "OR": TokenType.OR,
-    "AND": TokenType.AND,
-    
-    "\n": TokenType.NEWLINE,
-    "(":  TokenType.LPAREN,
-    ")":  TokenType.RPAREN,
-    "[":  TokenType.LS_PAREN,
-    "]":  TokenType.RS_PAREN, 
-    "{":  TokenType.LC_BRACE,
-    "}":  TokenType.RC_BRACE,
-    ",":  TokenType.COMMA,
-    "'":  TokenType.STRING_QUOTE,
-    "\"": TokenType.STRING_QUOTE,
-    ":":  TokenType.COLON,
-    ".":  TokenType.DOT,
-}
-QUOTE_CHARS = ("'", "\"")
-keywords = {
-    "SUBROUTINE": TokenType.SUBROUTINE, 
-    "ENDSUBROUTINE": TokenType.END, 
-    "RETURN": TokenType.MAGIC,
-    "CONTINUE": TokenType.MAGIC,
-    "BREAK": TokenType.MAGIC,
-    "OUTPUT": TokenType.MAGIC,
-    "USERINPUT": TokenType.MAGIC,
-    "False": TokenType.BOOLEAN,
-    "True": TokenType.BOOLEAN,
-    "None": TokenType.NONE,
-
-    "IF": TokenType.IF,
-    "THEN": TokenType.THEN,
-    "ELSE": TokenType.ELSE,
-    "ENDIF": TokenType.END,
-
-    "WHILE": TokenType.WHILE,
-    "ENDWHILE": TokenType.END,
-
-    "REPEAT": TokenType.REPEAT,
-    "UNTIL": TokenType.UNTIL,
-
-    "FOR": TokenType.FOR,
-    "TO": TokenType.TO,
-    "IN": TokenType.IN,
-    "STEP": TokenType.STEP,
-    "ENDFOR": TokenType.END,
-    
-    "RECORD": TokenType.RECORD,
-    "ENDRECORD": TokenType.END,
-    "CONSTANT": TokenType.CONSTANT,
-    "TRY": TokenType.TRY,
-    "CATCH": TokenType.CATCH,
-    "ENDTRY": TokenType.END,
-    "CLASS": TokenType.CLASS,
-    "ENDCLASS": TokenType.END,
-    "IMPORT": TokenType.IMPORT,
-    "AS": TokenType.AS,
-    "END": TokenType.END
-}
-
-KEYWORDS = {**symbols, **keywords}
-
-@dataclass
-class LexerResult:
-    tokens: List[Token]
-    lines: List[str]
-
-class Lexer:
-    def __init__(self):
-        self.tokens: List[Token] = []
-        self.whitespaceChars = " \t\r"
-
-        self.IdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-        self.startIdChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
-        self.numChars = "0123456789."
-        self.escapeChars = {
-            "n": "\n",
-            "t": "\t",
-            "\"": "\"",
-            "'": "'"
-        }
-
-        self.init()
-    
-    def init(self):
-        self.lineno = 1
+    @token(r"\n")
+    def NEWLINE(self, t):
+        self.lineno += len(t.value)
         self.column = 0
-        self.curPos = 0
-        self.source = ""
-        self.lines = []
-        self.tokens = []
+        return t
     
-    def Token(self, value, tokenType):
-        token = Token(
-            value, tokenType,
-            lineno=self.lineno, column=self.column
-        )
-        return token
+    LPAREN = r"\("
+    RPAREN = r"\)"
+    LS_PAREN = r"\["
+    RS_PAREN = r"\]"
+    LC_BRACE = r"\{"
+    RC_BRACE = r"\}"
+    COMMA = r","
+    COLON = r"\:"
     
-    @property
-    def reachedEnd(self):
-        return self.curPos >= len(self.source)
-
-    @property
-    def curChar(self):
-        if self.curPos < len(self.source):
-            return self.source[self.curPos]
-        else:
-            return "\0" # EOF
+    # types
+    @token(r"(\d*\.\d+)", r"(\d+\.\d*)")
+    def FLOAT(self, t):
+        float(t.value)
+        return t
     
-    def ReachedEndError(self):
-        raise Exception("Unexpected end of string")
-
-    def advance(self):
-        self.curPos += 1
-        self.column += 1
+    @token(r"\d+")
+    def INT(self, t):
+        int(t.value)
+        return t
     
-    def peek(self):
-        if self.curPos + 1 >= len(self.source):
-            return "\0"
-        return self.source[self.curPos+1]
+    BOOLEAN = r"True", r"False"
+
+    @token(r'''"([^\\"]|\\.)*"''', r"""'([^\\']|\\.)*'""")
+    # https://stackoverflow.com/a/481587
+    # https://regexr.com/5u0kf
+    def STRING(self, t):
+        t.value = t.value[1:-1]
+        # need to do some sort of processing of escape characters??
+        return t
     
-    def skipWhitespace(self):
-        while self.curChar in self.whitespaceChars:
-            self.advance()
+    NONE = r"None"
+
+    DOT = r"\."
     
-    def skipComment(self):
-        if self.curChar == "#":
-            while self.curChar not in "\0\n":
-                self.advance()
-    
-    def id(self):
-        s = ""
-        while self.curChar in self.IdChars:
-            s += self.curChar
-            self.advance()
+    # keywords
+    SUBROUTINE = r"SUBROUTINE",
+    END = r"ENDSUBROUTINE", r"ENDIF", r"ENDWHILE", r"ENDFOR", r"ENDRECORD", r"ENDTRY", r"ENDCLASS", r"END"
+    MAGIC = r"RETURN", r"CONTINUE", r"BREAK", r"OUTPUT", r"USERINPUT"
+    IF = r"IF"
+    THEN = r"THEN"
+    ELSE = r"ELSE"
+    WHILE = r"WHILE"
+    REPEAT = r"REPEAT"
+    UNTIL = r"UNTIL"
+    FOR = r"FOR"
+    TO = r"TO"
+    IN = r"IN"
+    STEP = r"STEP"
+    RECORD = r"RECORD"
+    CONSTANT = r"CONSTANT"
+    TRY = r"TRY"
+    CATCH = r"CATCH"
+    CLASS = r"CLASS"
+    IMPORT = r"IMPORT"
+    AS = r"AS"
 
-        if s in KEYWORDS.keys():
-            return self.Token(s, KEYWORDS[s])
-        else:
-            return self.Token(s, TokenType.ID)
+    ID = r"[a-zA-Z_][a-zA-Z0-9_]*"
 
-    def number(self):
-        s = ""
-        while self.curChar in self.numChars:
-            s += self.curChar
-            self.advance()
-        
-        try:
-            if "." in s:
-                float(s)
-                return self.Token(s, TokenType.FLOAT)
-            else:
-                int(s)
-                return self.Token(s, TokenType.INT)
-        except ValueError:
-            return self.Token(s, TokenType.INVALID)
-
-    def op(self):
-        s = ""
-        while self.curChar not in self.whitespaceChars + "\0":
-            s += self.curChar
-            self.advance()
-
-            if s in KEYWORDS.keys() and self.curChar not in ("=", "*"):
-                break
-
-        if s in KEYWORDS.keys():
-            return self.Token(s, KEYWORDS[s])
-        else:
-            return self.Token(s, TokenType.INVALID)
-
-    def _string(self):
-        s = ""
-        start = self.curChar
-        self.advance()
-        while self.curChar != start:
-            if self.curChar == "\\":
-                self.advance()
-                if self.curChar in self.escapeChars.keys():
-                    s += self.escapeChars[self.curChar]
-                else:
-                    s += self.curChar
-                self.advance()
-            else:
-                s += self.curChar
-                self.advance()
-            
-            if self.reachedEnd:
-                self.ReachedEndError()
-        
-        self.advance()
-        
-        return self.Token(s, TokenType.STRING)
-
-    
-    def getToken(self):
-        if self.curChar == "\n":
-            self.lineno += 1
-            self.column = 0
-            self.advance()
-            return Token("\n", TokenType.NEWLINE)
-        elif self.curChar in self.startIdChars: # ID
-            return self.id()
-        elif self.curChar in self.numChars and self.curChar != ".":
-            return self.number()
-        elif self.curChar in "\"'":
-            return self._string()
-        elif self.curChar == "\0":
-            return self.Token("<EOF>", TokenType.EOF)
-        else:
-            return self.op()
-        
-
-    def lexString(self, source):
-        self.init()
-        self.source = source
-        self.lines = source.split("\n")
-        end = False
-        while not end:
-            self.skipWhitespace()
-            self.skipComment()
-            token = self.getToken()
-            self.tokens.append(token)
-            if token.type == TokenType.EOF:
-                end = True
-        return LexerResult(self.tokens, self.lines)
+    ignore = " \t"
+    ignore_comment = r"#.+"

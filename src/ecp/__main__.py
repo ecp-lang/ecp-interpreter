@@ -1,6 +1,6 @@
 from .lexer import *
 from .topython import *
-from . import __version__
+from . import __version__, _dump
 import argparse
 from .tracker import Tracker
 from traceback import print_exc
@@ -38,6 +38,7 @@ def main():
         if options.topython:
             print(to_py_source(string))
         else:
+            #print(_dump(parse_ecp(string), indent=2, include_attributes=True)) # DEBUG
             ecp(string, name=name, scope=globals(), trace=options.trace, tracecompact=options.tracecompact)
         if options.pause:
             input("Press enter to exit...")

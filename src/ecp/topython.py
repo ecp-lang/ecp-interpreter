@@ -1,7 +1,7 @@
 """Converts a list of ECP tokens into a python AST and provides the environment for execution."""
-
+from parsergen import *
+from parsergen.pyparse import Statement
 from .lexer import *
-from .parse import TokenConversions, ParseError
 from .tracker import Tracer
 import sys, os
 try:
@@ -9,7 +9,7 @@ try:
 except ImportError:
     print("astor module not found - will not be able to convert ECP to python source code")
     astor = None
-from math import sqrt
+from math import gamma, sqrt
 from random import randint, uniform
 from ast import *
 import ast
@@ -19,22 +19,22 @@ _Dict = ast.Dict
 BUILTIN_IMPORT = "from ecp.topython import *\n"
 
 TOKEN_TO_OP = {
-    TokenType.ADD:     Add,
-    TokenType.SUB:     Sub,
-    TokenType.MUL:     Mult,
-    TokenType.DIV:     Div,
-    TokenType.INT_DIV: FloorDiv,
-    TokenType.POW:     Pow,
-    TokenType.MOD:     Mod,
-    TokenType.LT:      Lt,
-    TokenType.LE:      LtE,
-    TokenType.EQ:      Eq,
-    TokenType.NE:      NotEq,
-    TokenType.GT:      Gt,
-    TokenType.GE:      GtE,
-    TokenType.AND:     And,
-    TokenType.OR:      Or,
-    TokenType.NOT:     Not,
+    "ADD":     Add,
+    "SUB":     Sub,
+    "MUL":     Mult,
+    "DIV":     Div,
+    "INT_DIV": FloorDiv,
+    "POW":     Pow,
+    "MOD":     Mod,
+    "LT":      Lt,
+    "LE":      LtE,
+    "EQ":      Eq,
+    "NE":      NotEq,
+    "GT":      Gt,
+    "GE":      GtE,
+    "AND":     And,
+    "OR":      Or,
+    "NOT":     Not,
 }
 
 def _dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
@@ -103,437 +103,369 @@ def _dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
         indent = ' ' * indent
     return _format(node)[0]
 
+"""
+Grammar for ECP
 
-class ParseToPython:
-    def __init__(self, lexer: LexerResult):
-        self.result = None
-        self.nodes = {}
-        self.offset = 0
-        self.lexer = lexer
-        self.token_num = 0
-    
-    def EOF(self):
-        return Token("", TokenType.EOF, len(self.lexer.lines)-1, len(self.lexer.lines[-2])+1)
-    
-    def get_next_token(self):
-        self.token_num += 1
-        if self.token_num >= len(self.lexer.tokens):
-            return self.EOF()
-        return self.lexer.tokens[self.token_num]
-    
-    
-    def eat(self, token_type):
-        if self.current_token.type == token_type:
-            self.get_next_token()
-        else:
-            raise ParseError(
-                f"Expected {token_type} but found {self.current_token.error_format()}",
-                *self.current_token.pos,
-                lineText=self.lexer.lines[self.current_token.lineno-1]
-            )
 
-    def eat_gap(self):
-        while self.current_token.type in (TokenType.NEWLINE,):
-            self.eat(self.current_token.type)
+program               :  compound
+
+compound              :  statement_list
+
+statement_list        :  (statement NEWLINE*)*
+
+statement             :  assignment_statement
+                      |  magic_function
+                      |  subroutine_call
+                      |  subroutine
+                      |  if_statement
+                      |  while_loop
+                      |  repeat_until_loop
+                      |  for_loop
+
+assignment_statement  :  variable ASSIGN expr
+
+magic_function        :  MAGIC ( expr ( COMMA expr )* )?
+
+subroutine_call       :  variable LPAREN ( param ( COMMA param )* )? RPAREN
+
+param                 :  expr
+
+subroutine            :  SUBROUTINE ID LPAREN ( param_definition ( COMMA parem_definition )* )? RPAREN compound ENDSUBROUTINE
+param_definition      :  variable
+
+
+if_statement          :  IF condition THEN compound ( else_if_statement | else_statement )? ENDIF
+else_if_statement     :  ELSE if_statement
+else_statement        :  ELSE compound
+
+for_loop              :  FOR assignment_statement TO expr (STEP expr)? compound ENDFOR
+                      |  FOR variable IN expr compound ENDFOR
+
+while_loop            :  WHILE expr compound ENDWHILE
+
+repeat_until_loop     :  REPEAT compound UNTIL expr
+
+record_definition     :  RECORD ID (variable)* ENDRECORD
+
+class_definition      :  CLASS ( subroutine | assignment_statement ) ENDCLASS
+
+import_statement      :  IMPORT expr (AS expr)
+
+try_catch             :  TRY compound CATCH compound ENDTRY
+
+expr                  :  term5
+
+term5                 :  term4  ( ( AND | OR            ) term4  )*
+term4                 :  term3  ( ( EQALITY_OP          ) term3  )*
+term3                 :  term2  ( ( ADD | SUB           ) term2  )*
+term2                 :  term   ( ( MUL | DIV | INT_DIV ) term   )*
+term                  :  factor ( ( POW | MOD           ) factor )*
+
+EQUALITY_OP           :  ( LT | LE | EQ | NE | GT | GE )
+
+
+factor                :  PLUS factor
+                      |  MINUS factor
+                      |  INTEGER_CONST
+                      |  REAL_CONST
+                      |  LPAREN expr RPAREN
+                      |  TRUE
+                      |  FALSE
+                      |  variable
+                      |  function_call
+                      |  array
+
+array                 :  LS_PAREN (expr (COMMA expr)*)? RS_PAREN
+
+dictionary            :  LC_BRACE ((expr COLON expr) (COMMA expr COLON expr)*)? RC_BRACE
+
+variable              :  (CONSTANT)? ID (targeter)* (COLON TYPE)?
+
+targeter              :  LS_PAREN expr RS_PAREN
+
+"""
+
+
+
+
+class ParseToPython(Parser):
+    tokens = EcpLexer.tokens
+    starting_point = "program"
+    
+    #def error(self):
+    #    raise ParseError(
+    #        f"Unexpected token {self.current_token.error_format()}", 
+    #        *self.current_token.pos,
+    #        lineText=self.lexer.lines[self.current_token.lineno-1]
+    #    )
 
     @property
-    def current_token(self):
-        if self.token_num >= len(self.lexer.tokens):
-            return self.EOF()
-        return self.lexer.tokens[self.token_num]
-    
-    @property
-    def next_token(self):
-        if self.token_num + 1 >= len(self.lexer.tokens):
-            return self.EOF()
-        return self.lexer.tokens[self.token_num + 1]
-    
-    def error(self):
-        raise ParseError(
-            f"Unexpected token {self.current_token.error_format()}", 
-            *self.current_token.pos,
-            lineText=self.lexer.lines[self.current_token.lineno-1]
-        )
+    def loc(self):
+        return {"lineno": self.current_token.lineno, "col_offset": self.current_token.column}
 
-    def program(self):
-        
-        return Module(body=self.compound(), type_ignores=[])
+    @grammar("compound")
+    def program(self, p):
+        return Module(body=p[0], type_ignores=[])
     
-    def compound(self):
-        nodes = self.statement_list()
-        #node = Module(body=nodes)
+    @grammar("statement_list")
+    def compound(self, p):
+        nodes = p[0]
         if len(nodes) == 0:
-            nodes.append(Pass(lineno=self.current_token.lineno, col_offset=self.current_token.lineno))
+            nodes.append(Pass(**self.loc))
         return nodes
     
-    def statement_list(self):
-        results = []
-        self.eat_gap()
-        if self.current_token.type != TokenType.NEWLINE:
-            node = self.statement()
-            if node:
-                results.append(node)
-            
-
-        while self.current_token.type == TokenType.NEWLINE:
-            self.eat_gap()
-            node = self.statement()
-            if node:
-                results.append(node)
-        if self.current_token.type == TokenType.ID:
-            self.error()
-
+    @grammar("NEWLINE* (statement NEWLINE*)*")
+    def statement_list(self, p):
+        results = [s[0] for s in p[1] if s[0]]
         return results
     
-    def statement(self):
-        if self.current_token.type == TokenType.MAGIC:
-            node = self.magic_function()
-            if isinstance(node, expr):
-                node = Expr(value=node, lineno=node.lineno, col_offset=node.col_offset)
-        elif self.current_token.type == TokenType.IF:
-            return self.if_statement()
-        elif self.current_token.type == TokenType.WHILE:
-            return self.while_statement()
-        elif self.current_token.type == TokenType.REPEAT:
-            return self.repeat_until_statement()
-        elif self.current_token.type == TokenType.FOR:
-            return self.for_loop()
-        elif self.current_token.type == TokenType.RECORD:
-            return self.record_definition()
-        elif self.current_token.type == TokenType.TRY:
-            return self.try_catch()
-        elif self.current_token.type == TokenType.SUBROUTINE:
-            return self.subroutine()
-        elif self.current_token.type == TokenType.CLASS:
-            return self.class_definition()
-        elif self.current_token.type == TokenType.IMPORT:
-            return self.import_statement()
-        else: # expr
-            value = self.expr()
-            if isinstance(value, expr):
-                return Expr(value=value, lineno=value.lineno, col_offset=value.col_offset)
-            return value
-
-        while self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN, TokenType.LPAREN):
-            if self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN):
-                node = self.process_indexing(node)
-            else:
-                node = self.subroutine_call(node)
+    @grammar("magic_function")
+    def statement(self, p):
+        node = p[0]
+        if isinstance(node, expr):
+            return Expr(value=node, lineno=node.lineno, col_offset=node.col_offset)
+        return node
         
-        return node
+    @grammar("if_statement | for_loop | while_loop | repeat_until_loop | record_definition | try_catch | suboroutine_definition | class_definition | import_statement | assignment_statement")
+    def statement(self, p):
+        return p[0]
     
-    def assignment_statement(self, var):
-        left = var
+    @grammar("expr")
+    def statement(self, p):
+        value = p[0]
+        if isinstance(value, expr):
+            return Expr(value=value, lineno=value.lineno, col_offset=value.col_offset)
+        return value
+    
+    @grammar("variable (COLON ID)? ASSIGN expr")
+    def assignment_statement(self, p):
+        left = p[0]
         left.ctx = Store()
-        if self.current_token.type == TokenType.COLON:
-            self.eat(TokenType.COLON)
-            self.eat(TokenType.ID) # TYPE
-        self.eat(TokenType.ASSIGN)
-        right = self.expr()
-        node = Assign(targets=[left], value=right, lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
+        right = p[3]
+        node = Assign(targets=[left], value=right, **self.loc)
         return node
     
-    def variable(self):
-        if self.current_token.type == TokenType.CONSTANT:
-            self.eat(TokenType.CONSTANT)
-        node = Name(id=self.current_token.value, ctx=Load(), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-        self.eat(TokenType.ID)
-        return self.process_indexing(node)
-    
-    def process_indexing(self, node):
-        while self.current_token.type in (TokenType.LS_PAREN, TokenType.DOT):
-            if self.current_token.type == TokenType.LS_PAREN:
-                self.eat(TokenType.LS_PAREN)
-                node = Subscript(value=node, slice=Index(value=self.expr()), ctx=Load(), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-                self.eat(TokenType.RS_PAREN)
+    @grammar("CONSTANT? ID indexing")
+    def variable(self, p):
+        node = Name(id=p[1], ctx=Load(), **self.loc)
+        return self.process_indexing(node, p[2])
 
-            elif self.current_token.type == TokenType.DOT:
-                self.eat(TokenType.DOT)
-                node = Attribute(value=node, attr=self.id(), ctx=Load(), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-        return node
+    @grammar("DOT ID")
+    def attr_index(self, p):
+        return "attr", p[1]
     
-    def id(self):
-        token = self.current_token
-        self.eat(TokenType.ID)
-        return token.value
+    @grammar("LS_PAREN expr RS_PAREN")
+    def subscript_index(self, p):
+        return "subscript", p[1]
+
+    @grammar("LPAREN (expr (COMMA expr)* COMMA? )? RPAREN")
+    def call(self, p):
+        params = []
+        if p[1] != None and len(p[1]) > 1:
+            params.append(p[1][0])
+            for _, param in p[1][1]:
+                params.append(param)
+        
+        return "call", params
+    
+    @grammar("(attr_index | subscript_index | call)*")
+    def indexing(self, p):
+        return [s[0] for s in p[0]]
+
+    def process_indexing(self, node, indexing):
+        rv = node
+        for t, v in indexing:
+            if t == "attr":
+                rv = Attribute(value=rv, attr=v, ctx=Load(), **self.loc)
+            elif t == "subscript":
+                rv = Subscript(value=rv, slice=Index(value=v), ctx=Load(), **self.loc)
+            elif t == "call":
+                rv = Call(func=rv, args=v, keywords=[], **self.loc)
+        return rv
     
     def empty(self):
         return Pass()
+
+    @grammar("factor_part indexing")
+    def factor(self, p):
+        return self.process_indexing(p[0], p[1])
     
-    def process_constant(self, t, value):
-        if t == TokenType.INT:
-            return Constant(value=int(value), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-        elif t == TokenType.FLOAT:
-            return Constant(value=float(value), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-        elif t == TokenType.BOOLEAN:
-            return Constant(value=(False if value.lower() == "false" else True), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-        elif t == TokenType.STRING:
-            return Constant(value=str(value), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
+    @grammar("PLUS factor")
+    def factor_part(self, p):
+        return UnaryOp(op=UAdd(), operand=p[1], lineno=p[1].lineno, col_offset=p[1].col_offset)
 
+    @grammar("SUB factor")
+    def factor_part(self, p):
+        return UnaryOp(op=USub(), operand=p[1], lineno=p[1].lineno, col_offset=p[1].col_offset)
 
-    def factor(self):
-        """factor : PLUS  factor
-              | MINUS factor
-              | INTEGER
-              | FLOAT
-              | STRING
-              | BOOLEAN
-              | LPAREN expr RPAREN
-              | variable
-              | function_call
-              | ARRAY
-        """
-        token = self.current_token
-        if token.type == TokenType.ADD:
-            self.eat(TokenType.ADD)
-            node = UnaryOp(op=UAdd(), operand=self.factor(), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-            
-        elif token.type == TokenType.SUB:
-            self.eat(TokenType.SUB)
-            node = UnaryOp(op=USub(), operand=self.factor(), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-        elif token.type == TokenType.NOT:
-            self.eat(TokenType.NOT)
-            node = UnaryOp(op=Not(), operand=self.factor(), lineno=self.current_token.lineno, col_offset=self.current_token.lineno)
-        elif token.type in TokenConversions.keys():
-            self.eat(token.type)
-            node = self.process_constant(token.type, token.value)
-        
-        elif token.type == TokenType.LPAREN:
-            self.eat(TokenType.LPAREN)
-            node = self.expr()
-            self.eat(TokenType.RPAREN)
-        elif token.type == TokenType.LS_PAREN:
-            self.eat(TokenType.LS_PAREN)
-            node = self.array()
-            self.eat(TokenType.RS_PAREN)
-        elif token.type == TokenType.LC_BRACE:
-            self.eat(TokenType.LC_BRACE)
-            node = self.dictionary()
-            self.eat(TokenType.RC_BRACE)
-        elif token.type == TokenType.MAGIC:
-            node = self.magic_function()
-        elif token.type in (TokenType.ID, TokenType.CONSTANT):
-            node = self.variable()
-            if self.current_token.type == TokenType.LPAREN:
-                node = self.subroutine_call(node)
-            elif self.current_token.type == TokenType.ASSIGN:
-                node = self.assignment_statement(node)
-        else:
-            return
-        
-        while self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN, TokenType.LPAREN):
-            if self.current_token.type in (TokenType.DOT, TokenType.LS_PAREN):
-                # would like to split these so something.something indicates a property and something["something"] is value
-                node = self.process_indexing(node)
-            else:
-                node = self.subroutine_call(node)
-        return node
+    @grammar("NOT factor")
+    def factor_part(self, p):
+        return UnaryOp(op=Not(), operand=p[1], lineno=p[1].lineno, col_offset=p[1].col_offset)
+    
+    @grammar("INT")
+    def factor_part(self, p):
+        return Constant(value=int(p[0]), **self.loc)
+    
+    @grammar("FLOAT")
+    def factor_part(self, p):
+        return Constant(value=float(p[0]), **self.loc)
 
-    def term(self):
-        node = self.factor()
+    @grammar("BOOLEAN")
+    def factor_part(self, p):
+        return Constant(value=False if p[0] == "False" else True, **self.loc)
+    
+    @grammar("STRING")
+    def factor_part(self, p):
+        return Constant(value=str(p[0]), **self.loc)
+    
+    @grammar("NONE")
+    def factor_part(self, p):
+        return Constant(value=None, **self.loc)
+    
+    @grammar("LPAREN expr RPAREN")
+    def factor_part(self, p):
+        return p[1]
+    
+    @grammar("array | dictionary | magic_function | variable")
+    def factor_part(self, p):
+        return p[0]
 
-        if self.current_token.type in (TokenType.POW, ):
-            token = self.current_token
-            self.eat(token.type)
-        
-            node = BinOp(left=node, op=TOKEN_TO_OP[token.type](), right=self.term(), lineno=token.lineno, col_offset=token.lineno)
+    @grammar("factor (POW term)?")
+    def term(self, p):
+        node = p[0]
+        if p[1]:
+            node = BinOp(left=node, op=Pow(), right=p[1][1], lineno=p[1][1].lineno, col_offset=p[1][1].col_offset)
         
         return node
     
-    def term2(self):
-        
-        node = self.term()
-
-        while self.current_token.type in (TokenType.MUL, TokenType.DIV, TokenType.INT_DIV, TokenType.MOD):
-            token = self.current_token
-            self.eat(token.type)
-        
-            node = BinOp(left=node, op=TOKEN_TO_OP[token.type](), right=self.term(), lineno=token.lineno, col_offset=token.lineno)
+    @grammar("term ( (MUL | DIV | INT_DIV | MOD) term )*")
+    def term2(self, p):
+        node = p[0]
+        for [op], t in p[1]:
+            node = BinOp(left=node, op=TOKEN_TO_OP[op](), right=t, lineno=t.lineno, col_offset=t.col_offset)
         
         return node
     
-
-    def term3(self):
-        
-        node = self.term2()
-
-        while self.current_token.type in (
-            TokenType.ADD, TokenType.SUB, 
-            #TokenType.GT, TokenType.GE, TokenType.EQ, TokenType.NE, TokenType.LT, TokenType.LE,
-        ):
-            token = self.current_token
-            self.eat(token.type)
-            
-            node = BinOp(left=node, op=TOKEN_TO_OP[token.type](), right=self.term2(), lineno=token.lineno, col_offset=token.lineno)
+    @grammar("term2 ( (ADD | SUB) term2 )*")
+    def term3(self, p):
+        node = p[0]
+        for [op], t in p[1]:
+            node = BinOp(left=node, op=TOKEN_TO_OP[op](), right=t, lineno=t.lineno, col_offset=t.col_offset)
         
         return node
     
-    def term4(self):
-        
-        node = self.term3()
-        while self.current_token.type in (
-            TokenType.LT,
-            TokenType.GT,
-            TokenType.LE,
-            TokenType.GE,
-            TokenType.EQ,
-            TokenType.NE,
-        ):
-            token = self.current_token
-            self.eat(token.type)
+    @grammar("term3 ( (LT | GT | LE | GE | EQ | NE) term3)*")
+    def term4(self, p):
+        node = p[0]
+        for [op], t in p[1]:
             if not isinstance(node, Compare):
-                node = Compare(left=node, ops=[TOKEN_TO_OP[token.type]()], comparators=[self.term3()], lineno=token.lineno, col_offset=token.lineno)
+                node = Compare(left=node, ops=[TOKEN_TO_OP[op]()], comparators=[t], lineno=t.lineno, col_offset=t.lineno)
             else:
-                node.ops.append(TOKEN_TO_OP[token.type]())
-                node.comparators.append(self.term3())
+                node.ops.append(TOKEN_TO_OP[op]())
+                node.comparators.append(t)
+        
         return node
     
-    def term5(self):
-        
-        node = self.term4()
-        while self.current_token.type in (
-            TokenType.AND, TokenType.OR,
-        ):
-            token = self.current_token
-            self.eat(token.type)
+    @grammar("term4 ( (AND | OR) term4)*")
+    def term5(self, p):
+        node = p[0]
+        for [op], t in p[1]:
             if not isinstance(node, BoolOp):
-                node = BoolOp(op=TOKEN_TO_OP[token.type](), values=[node, self.term4()], lineno=token.lineno, col_offset=token.lineno)
+                node = BoolOp(op=TOKEN_TO_OP[op](), values=[node, t], lineno=t.lineno, col_offset=t.lineno)
             else:
-                node.values.append(self.term4())
+                node.values.append(t)
+        
         return node
         
-    
-    def expr(self):
-        return self.term5()
+    @grammar("term5")
+    def expr(self, p):
+        return p[0]
         
-
-    def magic_function(self):
-        token = self.current_token
-        self.eat(TokenType.MAGIC)
+    @grammar("MAGIC (expr (COMMA expr)* COMMA? )?")
+    def magic_function(self, p):
         parameters = []
-        if self.current_token.type != TokenType.RPAREN:
-            p = self.param()
-            if p is not None:
-                parameters.append(p)
-            while self.current_token.type == TokenType.COMMA:
-                self.eat(TokenType.COMMA)
-                p = self.param()
-                if p is not None:
-                    parameters.append(p)
+        if p[1] != None and len(p[1]) > 0:
+            parameters.append(p[1][0])
+            if len(p[1]) > 1:
+                for _, param in p[1][1]:
+                    parameters.append(param)
+        name = p[0]
         
-        if token.value == "RETURN":
+        if name == "RETURN":
             if len(parameters) == 1:
                 return Return(value=parameters[0])
             if len(parameters > 1):
                 return Return(value=Tuple(elts=parameters, ctx=Load()))
             return Return()
-        elif token.value == "CONTINUE":
+        elif name == "CONTINUE":
             return Continue()
-        elif token.value == "BREAK":
+        elif name == "BREAK":
             return Break()
 
-        return Call(func=Name(id="_MAGIC_"+token.value, ctx=Load()), args=parameters, keywords=[], lineno=token.lineno, col_offset=token.lineno)
+        return Call(func=Name(id="_MAGIC_"+name, ctx=Load()), args=parameters, keywords=[], **self.loc)
     
-    def declare_param(self):
-        node = arg(arg=self.id(), annotation=None)
-        if self.current_token.type == TokenType.COLON:
-            self.eat(TokenType.COLON)
-            self.eat(TokenType.ID) # TYPE
-        #if self.current_token.type == TokenType.ASSIGN:
-        #    self.eat(TokenType.ASSIGN)
-        #    right = self.expr()
-        #    node.default = right
-        
+
+    @grammar("ID (COLON ID)?")
+    def param_definition(self, p):
+        node = arg(arg=p[0], annotation=None, **self.loc)
         return node
     
-    def param(self):
-        return self.expr()
+    @grammar("NEWLINE*")
+    def gap(self, p):
+        pass
 
-    
-    def subroutine(self):
-        self.eat(TokenType.SUBROUTINE)
-        token = self.current_token
-        self.eat(TokenType.ID)
-        self.eat(TokenType.LPAREN)
+    @grammar("NEWLINE*")
+    def _(self, p):
+        pass
+
+    @grammar("SUBROUTINE ID LPAREN (param_definition (COMMA param_definition)* COMMA? )? RPAREN compound END")
+    def suboroutine_definition(self, p):
         parameters = []
-        if self.current_token.type != TokenType.RPAREN:
-            parameters.append(self.declare_param())
-            while self.current_token.type == TokenType.COMMA:
-                self.eat(TokenType.COMMA)
-                parameters.append(self.declare_param())
-        self.eat(TokenType.RPAREN)
-        compound = self.compound()
-        self.eat(TokenType.END)
+        if p[3] != None and len(p[3]) > 0: # maybe broken
+            parameters.append(p[3][0])
+            for _, param in p[3][1]:
+                parameters.append(param)
+        name = p[1]
+        compound = p[5]
         return FunctionDef(
-            name=token.value, 
+            name=name, 
             args=arguments(args=parameters, posonlyargs=[], kwonlyargs=[], kw_defaults=[], defaults=[], kwarg=None, vararg=None), 
             body=compound, 
             decorator_list=[], 
             returns=None, 
             type_comment=None, 
-            lineno=token.lineno, 
-            col_offset=token.lineno
+            lineno=self.current_token.lineno, 
+            col_offset=self.current_token.lineno
         )
+ 
+    @grammar("IF expr gap THEN compound ( elseif_statement | else_statement )? END")
+    def if_statement(self, p):
+        condition = p[1]
+        consequence = p[4]
+        alternative = p[5] if p[5] is not None else []
+        return If(test=condition, body=consequence, orelse=alternative, **self.loc)
 
-    def subroutine_call(self, var):
-        token = self.current_token
-        self.eat(TokenType.LPAREN)
-
-        parameters = []
-        if self.current_token.type != TokenType.RPAREN:
-            parameters.append(self.param())
-            while self.current_token.type == TokenType.COMMA:
-                self.eat(TokenType.COMMA)
-                parameters.append(self.param())
-        self.eat(TokenType.RPAREN)
-        return Call(func=var, args=parameters, keywords=[], lineno=token.lineno, col_offset=token.lineno)
+    @grammar("ELSE if_statement")
+    def elseif_statement(self, p):
+        return [p[1]]
     
-    def if_statement(self):
-        token = self.current_token
-        self.eat(TokenType.IF)
-
-        condition = self.expr()
-        self.eat_gap()
-        self.eat(TokenType.THEN)
-
-        consequence = self.compound()
-
-        alternative = []
-        if self.current_token.type == TokenType.ELSE and self.next_token.type == TokenType.IF:
-            alternative = [self.elseif_statement()]
-        elif self.current_token.type == TokenType.ELSE:
-            alternative = self.else_statement()
-        
-        self.eat(TokenType.END)
-
-        return If(test=condition, body=consequence, orelse=alternative, lineno=token.lineno, col_offset=token.lineno)
-
-    def elseif_statement(self):
-        self.eat(TokenType.ELSE)
-        return self.if_statement()
+    @grammar("ELSE compound")
+    def else_statement(self, p):
+        return p[1]
     
-    def else_statement(self):
-        self.eat(TokenType.ELSE)
-        return self.compound()
-    
-    def while_statement(self):
+    @grammar("WHILE expr gap compound END")
+    def while_loop(self, p):
         token = self.current_token
-        self.eat(TokenType.WHILE)
-        condition = self.expr()
-        consequence = self.compound()
-        self.eat(TokenType.END)
-
+        condition = p[1]
+        consequence = p[3]
         return While(test=condition, body=consequence, orelse=[], lineno=token.lineno, col_offset=token.column)
         # TODO: implement else after while and for loops
     
-    def repeat_until_statement(self):
+    @grammar("REPEAT gap compound gap UNTIL expr")
+    def repeat_until_loop(self, p):
         token = self.current_token
-        self.eat(TokenType.REPEAT)
-        
-        consequence = self.compound()
-        self.eat_gap()
-        self.eat(TokenType.UNTIL)
-        condition = self.expr()
+        consequence = p[2]
+        condition = p[-1]
 
         check = If(
             test=condition,
@@ -545,114 +477,82 @@ class ParseToPython:
 
         return node
     
-    def array(self):
-        """array  :  LS_PAREN (expr)? (COMMA expr)* RS_PAREN"""
+    @grammar("LS_PAREN (gap expr ( gap COMMA gap expr)* gap COMMA? )? gap RS_PAREN")
+    def array(self, p):
         values = []
-        if self.current_token.type != TokenType.RS_PAREN:
-            self.eat_gap()
-            values.append(self.expr())
-            self.eat_gap()
-            while self.current_token.type == TokenType.COMMA:
-                self.eat_gap()
-                self.eat(TokenType.COMMA)
-                self.eat_gap()
-                values.append(self.expr())
-                self.eat_gap()
-        self.eat_gap()
-        #print(values)
-        return List(elts=values, ctx=Load())
+        if p[1] is not None and len(p[1]) > 1:
+            values = [p[1][1]]
+            for [_, _, _, v] in p[1][2]:
+                values.append(v)
+        return List(elts=values, ctx=Load(), **self.loc)
     
-    def dictionary(self):
-        """ LC_BRACE ((expr COLON expr) (COMMA expr COLON expr)*)?  RC_BRACE """
+    @grammar("LC_BRACE (_ expr _ COLON _ expr ( _ COMMA _ expr _ COLON _ expr)* _ COMMA? )? _ RC_BRACE")
+    def dictionary(self, p):
         keys = []
         values = []
-        if self.current_token.type != TokenType.RC_BRACE:
-            self.eat_gap()
-            keys.append(self.expr())
-            self.eat(TokenType.COLON)
-            self.eat_gap()
-            values.append(self.expr())
-            while self.current_token.type == TokenType.COMMA:
-                self.eat_gap()
-                self.eat(TokenType.COMMA)
-                self.eat_gap()
-                keys.append(self.expr())
-                self.eat(TokenType.COLON)
-                self.eat_gap()
-                values.append(self.expr())
-                self.eat_gap()
-        return _Dict(keys=keys, values=values)
+        if p[1] is not None:
+            keys, values = [p[1][1]], [p[1][5]]
+            if len(p[1][6]) > 6:
+                for [_, _, _, k, _, _, v] in p[1][6]:
+                    keys.append(k)
+                    values.append(v)
+        return _Dict(keys=keys, values=values, **self.loc)
     
-    def for_loop(self):
-        """for_loop   : FOR ID ASSIGN expr TO expr (STEP expr)? statement_list ENDFOR
-                      | FOR variable IN expr statement_list ENDFOR
-        """
-        loop = []
-        self.eat(TokenType.FOR)
-        variable = self.variable()
+    @grammar("FOR variable ASSIGN expr TO expr (STEP expr)? _ compound _ END")
+    def for_loop(self, p):
+        variable = p[1]
         variable.ctx = Store()
-        if self.current_token.type == TokenType.ASSIGN:
-            step = Constant(value=1)
-            # FOR ID ASSIGN expr TO expr (STEP expr)? statement_list ENDFOR
-            self.eat(TokenType.ASSIGN)
-            start = self.expr()
-            self.eat(TokenType.TO)
-            end = self.expr()
-            if self.current_token.type == TokenType.STEP:
-                self.eat(TokenType.STEP)
-                step = self.expr()
-                
-            self.eat_gap()
-            body = self.compound()
+        step = Constant(value=1, **self.loc)
 
-            f = For(
-                target=variable,
-                iter=Call(
-                    func=Name(id='range', ctx=Load()),
-                    args=[
-                      start,
-                      BinOp(left=end, op=Add(), right=Constant(value=1)),
-                      step
-                    ],
-                    keywords=[]
-                ),
-                body=body,
-                orelse=[]
-            )
+        start = p[3]
+        end = p[5]
+        if p[6]:
+            step = p[6][1]
+
+        body = p[8]
+        f = For(
+            target=variable,
+            iter=Call(
+                func=Name(id='range', ctx=Load(), **self.loc),
+                args=[
+                  start,
+                  BinOp(left=end, op=Add(), right=Constant(value=1, **self.loc), **self.loc),
+                  step
+                ],
+                keywords=[], **self.loc
+            ),
+            body=body,
+            orelse=[],
+            lineno=self.current_token.lineno,
+            col_offset=self.current_token.column
+        )
             
-        elif self.current_token.type == TokenType.IN:
-            # FOR variable IN expr statement_list ENDFOR
-            self.eat(TokenType.IN)
-            iterator = self.expr()
-            self.eat_gap()
-            body = self.compound()
-            
-            f = For(
-                target=variable,
-                iter=iterator,
-                body=body,
-                orelse=[]
-            )
-        
-        self.eat(TokenType.END)
         return f
     
-    def record_definition(self):
-        """record_definition  :  RECORD ID (variable)* ENDRECORD"""
-        self.eat(TokenType.RECORD)
-        token = self.id()
-        self.eat_gap()
-        parameters = []
-        while self.current_token.type != TokenType.END:
-            self.eat_gap()
-            parameters.append(self.variable().id)
-            if self.current_token.type == TokenType.COLON:
-                self.eat(TokenType.COLON)
-                self.eat(TokenType.ID) # TYPE
-            self.eat_gap()
+    @grammar("FOR variable IN expr _ compound _ END")
+    def for_loop(self, p):
+        variable = p[1]
+        variable.ctx = Store()
+        iterator = p[3]
+        body = p[5]
         
-        self.eat_gap()
-        self.eat(TokenType.END)
+        f = For(
+            target=variable,
+            iter=iterator,
+            body=body,
+            orelse=[],
+            lineno=self.current_token.lineno,
+            col_offset=self.current_token.column
+        )
+        return f
+    
+    @grammar("RECORD ID ( _ variable (COLON ID)? )* _ END")
+    def record_definition(self, p):
+        name = p[1]
+        parameters = []
+        for [_, variable, *_] in p[2]: # maybe broken
+            parameters.append(variable.id)
+
         # class something:
         #   def __init__(self, a, b, c, ...):
         #       self.a = a
@@ -660,7 +560,7 @@ class ParseToPython:
         #       self.c = c
         #       ...  = ...
         return ClassDef(
-            name=token,
+            name=name,
             bases=[],
             keywords=[],
             body=[
@@ -698,13 +598,11 @@ class ParseToPython:
         )
         
     
-    def try_catch(self):
-        self.eat(TokenType.TRY)
-        try_compound = self.compound()
-        self.eat(TokenType.CATCH)
-        catch_compound = self.compound()
-        self.eat(TokenType.END)
-
+    @grammar("TRY compound CATCH compound END")
+    def try_catch(self, p):
+        try_compound = p[1]
+        catch_compound = p[3]
+        
         return Try(
             body=try_compound,
             handlers=[
@@ -718,32 +616,28 @@ class ParseToPython:
             finalbody=[]
         )
     
-    def class_definition(self):
-        token = self.current_token
-        self.eat(TokenType.CLASS)
-        variable = self.variable()
-        body = []
-        self.eat_gap()
-        body = self.compound()
-        self.eat(TokenType.END)
-
+    @grammar("CLASS variable compound END")
+    def class_definition(self, p):
+        variable = p[1]
+        body = p[2]
+        
         return ClassDef(
             name=variable.id,
             bases=[],
             keywords=[],
             body=body,
             decorator_list=[],
-            lineno=token.lineno,
-            col_offset=token.column
+            lineno=self.current_token.lineno,
+            col_offset=self.current_token.column
         )
     
-    def import_statement(self):
-        self.eat(TokenType.IMPORT)
-        location = self.expr()
+    @grammar("IMPORT expr (AS expr)?")
+    def import_statement(self, p):
+        location = p[1]
         target = Constant(value=None)
-        if self.current_token.type == TokenType.AS:
-            self.eat(TokenType.AS)
-            target = self.expr()
+        if p[2] is not None:
+            target = p[2][1]
+        
         return Expr(
             value=Call(
                 func=Name(id='_ECP_IMPORT', ctx=Load()),
@@ -752,21 +646,32 @@ class ParseToPython:
             )
         )
 
-    def parse(self):
-        node = self.program()
-        if self.current_token.type != TokenType.EOF:
-            self.error()
-
-        return node
-
+    #def parse(self):
+    #    node = self.program()
+    #    if self.current_token.type != TokenType.EOF:
+    #        self.error()
+    #    return node 
 
 class Namespace:
     def __init__(self, **kwargs) -> None:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+
+def fix_line_and_column(node):
+    for child in walk(node):
+        if 'lineno' in child._attributes:
+            child.lineno = getattr(child, 'lineno', 0)
+        if 'end_lineno' in child._attributes:
+            child.end_lineno = getattr(child, 'end_lineno', 0)
+        if 'col_offset' in child._attributes:
+            child.col_offset = getattr(child, 'col_offset', 0)
+        if 'end_col_offset' in child._attributes:
+            child.end_col_offset = getattr(child, 'end_col_offset', 0)
+    return fix_missing_locations(node)
+
 def parse_ecp(text: str):
-    return fix_missing_locations(ParseToPython(Lexer().lexString(text)).parse())
+    return fix_line_and_column(ParseToPython().parse(EcpLexer().lex_string(text)))
 
 def to_py_source(text: Union[str, Module]):
     code = text
