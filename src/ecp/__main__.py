@@ -65,7 +65,7 @@ def main():
                     string += "\n"
 
             try:
-                ecp(string, name="<stdin>", scope=globals())
+                ecp(string, name="<stdin>", scope=globals(), mode="single")
             except:
                 print_exc(0)
 

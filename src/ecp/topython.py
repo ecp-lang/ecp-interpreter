@@ -365,7 +365,7 @@ class ParseToPython(Parser):
         if name == "RETURN":
             if len(parameters) == 1:
                 return Return(value=parameters[0])
-            if len(parameters > 1):
+            if len(parameters) > 1:
                 return Return(value=Tuple(elts=parameters, ctx=Load()))
             return Return()
         elif name == "CONTINUE":
@@ -637,8 +637,11 @@ def fix_line_and_column(node):
             child.end_col_offset = getattr(child, 'end_col_offset', 0)
     return fix_missing_locations(node)
 
-def parse_ecp(text: str):
-    return fix_line_and_column(ParseToPython().parse(EcpLexer().lex_string(text)))
+def parse_ecp(text: str, mode="exec"):
+    rv = fix_line_and_column(ParseToPython().parse(EcpLexer().lex_string(text)))
+    if mode == "single":
+        rv = Interactive(body=rv.body)
+    return rv
 
 def to_py_source(text: Union[str, Module]):
     code = text
@@ -648,7 +651,7 @@ def to_py_source(text: Union[str, Module]):
         return BUILTIN_IMPORT + astor.to_source(code)
     raise Exception("astor module not found - cannot convert ecp to python source code")
 
-def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope=None, trace=None, tracecompact=False):
+def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope=None, trace=None, tracecompact=False, mode="exec"):
     if text is None:
         with open(file, encoding="utf-8") as f:
             text = f.read()
@@ -659,14 +662,14 @@ def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope
     if trace is None:
         trace = []
     scope.update(globals())
-    r = parse_ecp(text)
+    r = parse_ecp(text, mode=mode)
     if showAST:
         print(_dump(r, indent=2))
     if len(trace) > 0:
         with Tracer(trace, compact=tracecompact):
-            exec(compile(parse(r, mode="exec"), name, "exec"), scope)
+            exec(compile(parse(r, mode=mode), name, mode), scope)
     else:
-        exec(compile(parse(r, mode="exec"), name, "exec"), scope)
+        exec(compile(parse(r, mode=mode), name, mode), scope)
 
     return Namespace(**scope)
 
