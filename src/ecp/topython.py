@@ -1,8 +1,9 @@
 """Converts a list of ECP tokens into a python AST and provides the environment for execution."""
 from parsergen import *
-from parsergen.pyparse import Statement
+from parsergen.parser import ParseError
 from .lexer import *
 from .tracker import Tracer
+from code import compile_command
 import sys, os
 try:
     import astor
@@ -642,6 +643,20 @@ def parse_ecp(text: str, mode="exec"):
     if mode == "single":
         rv = Interactive(body=rv.body)
     return rv
+
+def get_more(text: str) -> bool:
+    code = None
+    
+    try:
+        code = compile(parse_ecp(text, mode="single"), "<interactive>", "single")
+    except ParseError as e:
+        pass
+    
+    if code or text.endswith("\n"):
+        return False
+    else:
+        return True
+    
 
 def to_py_source(text: Union[str, Module]):
     code = text

@@ -1,3 +1,4 @@
+from sys import exc_info
 from .lexer import *
 from .topython import *
 from . import __version__, _dump
@@ -47,27 +48,27 @@ def main():
         # Live console
         print(f"ECP {__version__}")
         string = ""
-        multiple_line = False
         prompt = ">>> "
+        more_prompt = "... "
         while True:
-            if not multiple_line:
-                string = input(">>> ")
-                multiple_line = string.endswith("\\")
-                if multiple_line:
-                    string = string[:-1]
-                    string += "\n"
-
-            while multiple_line:
-                string += input("... ")
-                multiple_line = string.endswith("\\")
-                if multiple_line:
-                    string = string[:-1]
-                    string += "\n"
-
             try:
-                ecp(string, name="<stdin>", scope=globals(), mode="single")
-            except:
-                print_exc(0)
+                string = input(">>> ")
+                more = get_more(string)
+                while more:
+                    string += "\n" + input(more_prompt)
+                    #print(repr(string))
+                    more = get_more(string)
+                try:
+                    ecp(string, name="<stdin>", scope=globals(), mode="single")
+                except SystemExit:
+                    exit()
+                except:
+                    print_exc(0)
+            except KeyboardInterrupt:
+                print()
+                string = ""
+            except EOFError:
+                exit()
 
 if __name__ == "__main__":
     main()

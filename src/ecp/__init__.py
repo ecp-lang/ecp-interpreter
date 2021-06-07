@@ -7,4 +7,4 @@ __version__ = "1.3.0b3"
 from .lexer import EcpLexer
 #from .parse import Object, IntObject, FloatObject, BoolObject, ArrayObject, StringObject, DictionaryObject, BuiltinModule
 #from .parse import Parser, Interpreter
-from .topython import ParseToPython, ecp, parse_ecp, to_py_source, _dump
+from .topython import ParseToPython, ecp, parse_ecp, to_py_source, _dump, get_more
