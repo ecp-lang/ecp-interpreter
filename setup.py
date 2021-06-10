@@ -27,6 +27,7 @@ setuptools.setup(
     python_requires=">=3.6",
     install_requires=[
         "tabulate",
-        "astor"
+        "astor",
+        "parsergen==2.0.0b5"
     ]
 )
