@@ -1,3 +1,3 @@
 tabulate==0.8.9
 astor==0.8.1
-parsergen
+parsergen==2.0.0b5

@@ -1,0 +1,73 @@
+program
+    :  p=compound EOF { Module(body=p, type_ignores=[], **self.loc) };
+compound
+    :  c=statement* { PyECP_Compound(c, self.loc) };
+
+statement
+    :  e= if_statement | for_loop | while_loop | repeat_until_loop | record_definition | try_catch
+     | suboroutine_definition | class_definition | import_statement | assignment_statement { e };
+    :  e=expr { PyECP_ExprStatement(e) };
+
+assignment_statement  :  target=variable (COLON ID)? ASSIGN value=expr { PyECP_Assign(target, value, self.loc) };
+variable  :  CONSTANT? name=ID indexing=indexing { PyECP_Variable(name, indexing, self.loc) };
+parameters  :  params=(expr (COMMA expr)* COMMA?)? { PyECP_Parameters(params) };
+attr_index  :  DOT i=ID { "attr", i.value };
+subscript_index  :  LS_PAREN i=expr RS_PAREN { "subscript", i };
+call  :  LPAREN params=parameters RPAREN { "call", params };
+indexing  :  indexes=(attr_index | subscript_index | call)* { [i for [i] in indexes] };
+factor  :  f=factor_part i=indexing { PyECP_Factor(f, i, self.loc) };
+
+factor_part
+    :  t= INT | FLOAT | BOOLEAN | STRING | NONE { PyECP_Constant(t, self.loc) };
+    :  LPAREN e=expr RPAREN { e };
+    :  p= array | dictionary | tuple | magic_function | variable { p };
+    :  op= PLUS | SUB | NOT e=factor { PyECP_UnaryOp(op, e) };
+
+
+expr  :  e=op_or { e };
+op_or
+    :  base=op_and others=(OR op_and)+ { PyECP_BoolOp(base, "OR", others, self.loc) };
+    :  e=op_and { e };
+op_and
+    :  base=inversion others=(AND inversion)+ { PyECP_BoolOp(base, "AND", others, self.loc) };
+    :  e=inversion { e };
+inversion
+    :  op=NOT e=inversion { PyECP_UnaryOp(op, e) };
+    :  e=comparison { e };
+comparison
+    :  base=sum others=(LT | GT | LE | GE | EQ | NE sum)+ { PyECP_Comparison(base, others, self.loc) };
+    :  e=sum { e };
+sum
+    :  left=sum op= ADD | SUB right=term { PyECP_BinOp(left, right, op, self.loc) };
+    :  e=term { e };
+term   
+    :  left=term op= MUL | DIV | INT_DIV | MOD right=uop { PyECP_BinOp(left, right, op, self.loc) };
+    :  e=uop { e };
+uop
+    :  op= ADD | SUB e=uop { PyECP_UnaryOp(op, e) };
+    :  e=power { e }; 
+power
+    :  left=power op=POW right=factor { PyECP_BinOp(left, right, op, self.loc) };
+    :  e=factor { e };
+
+
+magic_function  :  name=MAGIC parameters=parameters { PyECP_Magic(name.value, parameters, self.loc) };
+param_definition  :  name=ID (COLON ID)? { arg(arg=name.value, annotation=None, **self.loc) };
+suboroutine_definition  :  SUBROUTINE name=ID LPAREN params=(param_definition (COMMA param_definition)* COMMA?)? RPAREN block=compound END { PyECP_SubroutineDef(name, params, block, self.loc) };
+
+if_statement  :  IF condition=expr THEN block=compound other=(elseif_statement | else_statement)? END { PyECP_IfStatement(condition, block, other, self.loc) };
+elseif_statement  :  ELSE otherwise=if_statement { [otherwise] };
+else_statement  :  ELSE block=compound { block };
+
+while_loop  :  WHILE condition=expr block=compound END { PyECP_While(condition, block, self.loc) };
+repeat_until_loop  :  REPEAT block=compound UNTIL condition=expr { PyECP_RepeatUntil(condition, block, self.loc) };
+array  :  LS_PAREN values=parameters RS_PAREN { PyECP_Array(values, self.loc) };
+tuple  :  LPAREN values=parameters RPAREN { PyECP_Tuple(values, self.loc) };
+dictionary  :  LC_BRACE kv_pairs=(expr COLON expr (COMMA expr COLON expr)* COMMA?)? RC_BRACE { PyECP_Dictionary(kv_pairs, self.loc) };
+for_loop
+    :  FOR v=variable ASSIGN start=expr TO end=expr step=(STEP expr)? block=compound END { PyECP_ForTo(v, start, end, step, block, self.loc) };
+    :  FOR v=variable IN iterator=expr block=compound END { PyECP_ForIn(v, iterator, block, self.loc) };
+record_definition  :  RECORD name=ID values=(variable (COLON ID)?)* END { PyECP_Record(name, values, self.loc) };
+try_catch  :  TRY try_block=compound CATCH catch_block=compound END { PyECP_Try(try_block, catch_block, self.loc) };
+class_definition  :  CLASS name=variable body=compound END { PyECP_Class(name, body, self.loc) };
+import_statement  :  IMPORT location=expr target=(AS expr)? { PyECP_Import(location, target, self.loc) };

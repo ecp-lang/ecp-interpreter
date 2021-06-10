@@ -25,7 +25,7 @@ class EcpLexer(Lexer):
     MUL     = use_name("MUL",     r"\*"          )
     SUB     = use_name("SUB",     r"\-",   r"–"  )
     INT_DIV = use_name("INT_DIV", r"DIV"         )
-    MOD     = use_name("MOD",     r"MOD"         )
+    MOD     = use_name("MOD",     r"%",    r"MOD")
     DIV     = use_name("DIV",     r"/"           )
     NE      = use_name("NE",      r"!=",   r"≠"  )
     LE      = use_name("LE",      r"<=",   r"≤"  )
@@ -40,7 +40,7 @@ class EcpLexer(Lexer):
     def NEWLINE(self, t):
         self.lineno += len(t.value)
         self.column = 0
-        return t
+        return None
     
     LPAREN = r"\("
     RPAREN = r"\)"
