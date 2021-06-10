@@ -3,9 +3,20 @@ import setuptools
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
+with open("src/ecp/__init__.py") as f:
+    lines = f.readlines()
+
+version = None
+for l in lines:
+    if l.startswith("__version__"):
+        version = l.split("=")[1].strip()[1:-1]
+
+if version is None:
+    raise Exception("Version not found!")
+
 setuptools.setup(
     name="py-ecp",
-    version="1.3.0b3",
+    version=version,
     author="Conqu3red",
     description="ECP programming language",
     long_description=long_description,
