@@ -6,8 +6,8 @@ import argparse
 from .tracker import Tracker
 from traceback import print_exc
 import os
+
 def main():
-    
     parser = argparse.ArgumentParser(description="ECP interpreter")
     parser.add_argument("inputfile", type=argparse.FileType("r", encoding="utf-8"), nargs="?")
     parser.add_argument("--debug", action="store_true", help="show debug information like token list")

@@ -29,5 +29,10 @@ setuptools.setup(
         "tabulate",
         "astor",
         "parsergen==2.0.0b5"
-    ]
+    ],
+    entry_points = {
+        'console_scripts': [
+            'ecp = ecp.__main__:main'
+        ]
+    },
 )
