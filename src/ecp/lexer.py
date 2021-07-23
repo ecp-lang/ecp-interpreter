@@ -1,6 +1,7 @@
 from typing import *
 from parsergen import *
 from tabulate import tabulate
+import codecs
 
 def use_name(name, *rules):
     """Helper function for crating tokens which return their type as value
@@ -64,13 +65,30 @@ class EcpLexer(Lexer):
     
     BOOLEAN = r"True", r"False"
 
-    @token(r'''"([^\\"]|\\.)*"''', r"""'([^\\']|\\.)*'""")
-    # https://stackoverflow.com/a/481587
-    # https://regexr.com/5u0kf
+    @token(r"(\"|')")
     def STRING(self, t):
-        t.value = t.value[1:-1]
-        # need to do some sort of processing of escape characters??
-        return t
+        end = t.value
+        escape = False
+        result = ""
+        while True:
+            if len(self.source) > 0:
+                cur_char = self.source[0]
+                self.step_source(1)
+                if not escape and cur_char == "\\":
+                    result += cur_char
+                    if len(self.source) == 0:
+                        continue
+                    cur_char = self.source[0]
+                    self.step_source(1)
+                    escape = True
+                if cur_char == end and not escape:
+                    t.value = codecs.getdecoder("unicode_escape")(result)[0]
+                    return t
+                result += cur_char
+                escape = False
+            else:
+                raise Exception("No end of string")
+    
     
     NONE = r"None"
 

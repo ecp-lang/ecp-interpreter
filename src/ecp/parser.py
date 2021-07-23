@@ -240,6 +240,12 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
+            predicate_pos = self.mark()
+            part = self.expect('ASSIGN')
+            self.goto(predicate_pos)
+            if self.match(part):
+                self.fail()
+                break
             part = self._loop_7()
             if not self.match(part):
                 self.fail()
@@ -277,10 +283,114 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
+            predicate_pos = self.mark()
+            part = self.expect('ASSIGN')
+            self.goto(predicate_pos)
+            if self.match(part):
+                self.fail()
+                break
             return parts
         self.goto(pos)
         return None
     def _maybe_8(self):
+        pos = self.mark()
+        part = self.expect('COMMA')
+        if self.match(part): return part
+        self.goto(pos)
+        return Filler()
+    @memoize
+    def kw_parameters(self):
+        pos = self.mark()
+        parts = []
+        for _ in range(1):
+            part = self._maybe_10()
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            # match:
+            params = parts[0]
+            return PyECP_KwParameters(params)
+        self.goto(pos)
+        
+        return None
+        
+    def _maybe_10(self):
+        pos = self.mark()
+        part = self._expr_list_11()
+        if self.match(part): return part
+        self.goto(pos)
+        return Filler()
+    def _expr_list_11(self):
+        pos = self.mark()
+        parts = []
+        for _ in range(1):
+            part = self.expect('ID')
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            part = self.expect('ASSIGN')
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            part = self.expr()
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            part = self._loop_12()
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            part = self._maybe_13()
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            return parts
+        self.goto(pos)
+        return None
+    def _loop_12(self):
+        children = []
+        while True:
+            pos = self.mark()
+            part = self._expr_list_14()
+            if self.match(part): children.append(part)
+            else:
+                self.goto(pos)
+                break
+        return children
+    def _expr_list_14(self):
+        pos = self.mark()
+        parts = []
+        for _ in range(1):
+            part = self.expect('COMMA')
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            part = self.expect('ID')
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            part = self.expect('ASSIGN')
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            part = self.expr()
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            return parts
+        self.goto(pos)
+        return None
+    def _maybe_13(self):
         pos = self.mark()
         part = self.expect('COMMA')
         if self.match(part): return part
@@ -350,6 +460,11 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
+            part = self.kw_parameters()
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
             part = self.expect('RPAREN')
             if not self.match(part):
                 self.fail()
@@ -357,7 +472,8 @@ class CustomParser(GeneratedParser):
             parts.append(part)
             # match:
             params = parts[1]
-            return "call", params
+            kw_params = parts[2]
+            return "call", (params, kw_params)
         self.goto(pos)
         
         return None
@@ -367,7 +483,7 @@ class CustomParser(GeneratedParser):
         pos = self.mark()
         parts = []
         for _ in range(1):
-            part = self._loop_10()
+            part = self._loop_15()
             if not self.match(part):
                 self.fail()
                 break
@@ -379,21 +495,21 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _loop_10(self):
+    def _loop_15(self):
         children = []
         while True:
             pos = self.mark()
-            part = self._expr_list_11()
+            part = self._expr_list_16()
             if self.match(part): children.append(part)
             else:
                 self.goto(pos)
                 break
         return children
-    def _expr_list_11(self):
+    def _expr_list_16(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
-            part = self._or_12()
+            part = self._or_17()
             if not self.match(part):
                 self.fail()
                 break
@@ -401,7 +517,7 @@ class CustomParser(GeneratedParser):
             return parts
         self.goto(pos)
         return None
-    def _or_12(self):
+    def _or_17(self):
         pos = self.mark()
         part = self.attr_index()
         if self.match(part): return part
@@ -442,7 +558,7 @@ class CustomParser(GeneratedParser):
         pos = self.mark()
         parts = []
         for _ in range(1):
-            part = self._or_13()
+            part = self._or_18()
             if not self.match(part):
                 self.fail()
                 break
@@ -476,7 +592,7 @@ class CustomParser(GeneratedParser):
         
         parts = []
         for _ in range(1):
-            part = self._or_14()
+            part = self._or_19()
             if not self.match(part):
                 self.fail()
                 break
@@ -488,7 +604,7 @@ class CustomParser(GeneratedParser):
         
         parts = []
         for _ in range(1):
-            part = self._or_15()
+            part = self._or_20()
             if not self.match(part):
                 self.fail()
                 break
@@ -506,7 +622,7 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _or_13(self):
+    def _or_18(self):
         pos = self.mark()
         part = self.expect('INT')
         if self.match(part): return part
@@ -525,7 +641,7 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         self.fail()
         return None
-    def _or_14(self):
+    def _or_19(self):
         pos = self.mark()
         part = self.array()
         if self.match(part): return part
@@ -544,7 +660,7 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         self.fail()
         return None
-    def _or_15(self):
+    def _or_20(self):
         pos = self.mark()
         part = self.expect('PLUS')
         if self.match(part): return part
@@ -584,7 +700,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._loop_16()
+            part = self._loop_21()
             if not self.match(part):
                 self.fail()
                 break
@@ -609,11 +725,11 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _loop_16(self):
+    def _loop_21(self):
         children = []
         while True:
             pos = self.mark()
-            part = self._expr_list_17()
+            part = self._expr_list_22()
             if self.match(part): children.append(part)
             else:
                 if len(children) == 0:
@@ -621,7 +737,7 @@ class CustomParser(GeneratedParser):
                 self.goto(pos)
                 break
         return children if len(children) > 0 else None
-    def _expr_list_17(self):
+    def _expr_list_22(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -648,7 +764,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._loop_18()
+            part = self._loop_23()
             if not self.match(part):
                 self.fail()
                 break
@@ -673,11 +789,11 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _loop_18(self):
+    def _loop_23(self):
         children = []
         while True:
             pos = self.mark()
-            part = self._expr_list_19()
+            part = self._expr_list_24()
             if self.match(part): children.append(part)
             else:
                 if len(children) == 0:
@@ -685,7 +801,7 @@ class CustomParser(GeneratedParser):
                 self.goto(pos)
                 break
         return children if len(children) > 0 else None
-    def _expr_list_19(self):
+    def _expr_list_24(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -747,7 +863,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._loop_20()
+            part = self._loop_25()
             if not self.match(part):
                 self.fail()
                 break
@@ -772,11 +888,11 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _loop_20(self):
+    def _loop_25(self):
         children = []
         while True:
             pos = self.mark()
-            part = self._expr_list_21()
+            part = self._expr_list_26()
             if self.match(part): children.append(part)
             else:
                 if len(children) == 0:
@@ -784,11 +900,11 @@ class CustomParser(GeneratedParser):
                 self.goto(pos)
                 break
         return children if len(children) > 0 else None
-    def _expr_list_21(self):
+    def _expr_list_26(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
-            part = self._or_22()
+            part = self._or_27()
             if not self.match(part):
                 self.fail()
                 break
@@ -801,7 +917,7 @@ class CustomParser(GeneratedParser):
             return parts
         self.goto(pos)
         return None
-    def _or_22(self):
+    def _or_27(self):
         pos = self.mark()
         part = self.expect('LT')
         if self.match(part): return part
@@ -833,7 +949,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._or_23()
+            part = self._or_28()
             if not self.match(part):
                 self.fail()
                 break
@@ -864,7 +980,7 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _or_23(self):
+    def _or_28(self):
         pos = self.mark()
         part = self.expect('ADD')
         if self.match(part): return part
@@ -884,7 +1000,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._or_24()
+            part = self._or_29()
             if not self.match(part):
                 self.fail()
                 break
@@ -915,7 +1031,7 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _or_24(self):
+    def _or_29(self):
         pos = self.mark()
         part = self.expect('MUL')
         if self.match(part): return part
@@ -936,7 +1052,7 @@ class CustomParser(GeneratedParser):
         pos = self.mark()
         parts = []
         for _ in range(1):
-            part = self._or_25()
+            part = self._or_30()
             if not self.match(part):
                 self.fail()
                 break
@@ -966,7 +1082,7 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _or_25(self):
+    def _or_30(self):
         pos = self.mark()
         part = self.expect('ADD')
         if self.match(part): return part
@@ -1050,7 +1166,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_26()
+            part = self._maybe_31()
             if not self.match(part):
                 self.fail()
                 break
@@ -1062,13 +1178,13 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _maybe_26(self):
+    def _maybe_31(self):
         pos = self.mark()
-        part = self._expr_list_27()
+        part = self._expr_list_32()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
-    def _expr_list_27(self):
+    def _expr_list_32(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1105,7 +1221,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_28()
+            part = self._maybe_33()
             if not self.match(part):
                 self.fail()
                 break
@@ -1134,13 +1250,13 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _maybe_28(self):
+    def _maybe_33(self):
         pos = self.mark()
-        part = self._expr_list_29()
+        part = self._expr_list_34()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
-    def _expr_list_29(self):
+    def _expr_list_34(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1149,12 +1265,12 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._loop_30()
+            part = self._loop_35()
             if not self.match(part):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_31()
+            part = self._maybe_36()
             if not self.match(part):
                 self.fail()
                 break
@@ -1162,17 +1278,17 @@ class CustomParser(GeneratedParser):
             return parts
         self.goto(pos)
         return None
-    def _loop_30(self):
+    def _loop_35(self):
         children = []
         while True:
             pos = self.mark()
-            part = self._expr_list_32()
+            part = self._expr_list_37()
             if self.match(part): children.append(part)
             else:
                 self.goto(pos)
                 break
         return children
-    def _expr_list_32(self):
+    def _expr_list_37(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1189,7 +1305,7 @@ class CustomParser(GeneratedParser):
             return parts
         self.goto(pos)
         return None
-    def _maybe_31(self):
+    def _maybe_36(self):
         pos = self.mark()
         part = self.expect('COMMA')
         if self.match(part): return part
@@ -1220,7 +1336,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_33()
+            part = self._maybe_38()
             if not self.match(part):
                 self.fail()
                 break
@@ -1239,17 +1355,17 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _maybe_33(self):
+    def _maybe_38(self):
         pos = self.mark()
-        part = self._expr_list_34()
+        part = self._expr_list_39()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
-    def _expr_list_34(self):
+    def _expr_list_39(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
-            part = self._or_35()
+            part = self._or_40()
             if not self.match(part):
                 self.fail()
                 break
@@ -1257,7 +1373,7 @@ class CustomParser(GeneratedParser):
             return parts
         self.goto(pos)
         return None
-    def _or_35(self):
+    def _or_40(self):
         pos = self.mark()
         part = self.elseif_statement()
         if self.match(part): return part
@@ -1441,7 +1557,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_36()
+            part = self._maybe_41()
             if not self.match(part):
                 self.fail()
                 break
@@ -1458,13 +1574,13 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _maybe_36(self):
+    def _maybe_41(self):
         pos = self.mark()
-        part = self._expr_list_37()
+        part = self._expr_list_42()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
-    def _expr_list_37(self):
+    def _expr_list_42(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1483,12 +1599,12 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._loop_38()
+            part = self._loop_43()
             if not self.match(part):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_39()
+            part = self._maybe_44()
             if not self.match(part):
                 self.fail()
                 break
@@ -1496,17 +1612,17 @@ class CustomParser(GeneratedParser):
             return parts
         self.goto(pos)
         return None
-    def _loop_38(self):
+    def _loop_43(self):
         children = []
         while True:
             pos = self.mark()
-            part = self._expr_list_40()
+            part = self._expr_list_45()
             if self.match(part): children.append(part)
             else:
                 self.goto(pos)
                 break
         return children
-    def _expr_list_40(self):
+    def _expr_list_45(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1533,7 +1649,7 @@ class CustomParser(GeneratedParser):
             return parts
         self.goto(pos)
         return None
-    def _maybe_39(self):
+    def _maybe_44(self):
         pos = self.mark()
         part = self.expect('COMMA')
         if self.match(part): return part
@@ -1574,7 +1690,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_41()
+            part = self._maybe_46()
             if not self.match(part):
                 self.fail()
                 break
@@ -1639,13 +1755,13 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _maybe_41(self):
+    def _maybe_46(self):
         pos = self.mark()
-        part = self._expr_list_42()
+        part = self._expr_list_47()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
-    def _expr_list_42(self):
+    def _expr_list_47(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1677,7 +1793,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._loop_43()
+            part = self._loop_48()
             if not self.match(part):
                 self.fail()
                 break
@@ -1695,17 +1811,17 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _loop_43(self):
+    def _loop_48(self):
         children = []
         while True:
             pos = self.mark()
-            part = self._expr_list_44()
+            part = self._expr_list_49()
             if self.match(part): children.append(part)
             else:
                 self.goto(pos)
                 break
         return children
-    def _expr_list_44(self):
+    def _expr_list_49(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1714,7 +1830,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_45()
+            part = self._maybe_50()
             if not self.match(part):
                 self.fail()
                 break
@@ -1722,13 +1838,13 @@ class CustomParser(GeneratedParser):
             return parts
         self.goto(pos)
         return None
-    def _maybe_45(self):
+    def _maybe_50(self):
         pos = self.mark()
-        part = self._expr_list_46()
+        part = self._expr_list_51()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
-    def _expr_list_46(self):
+    def _expr_list_51(self):
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1831,7 +1947,7 @@ class CustomParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self._maybe_47()
+            part = self._maybe_52()
             if not self.match(part):
                 self.fail()
                 break
@@ -1844,13 +1960,13 @@ class CustomParser(GeneratedParser):
         
         return None
         
-    def _maybe_47(self):
+    def _maybe_52(self):
         pos = self.mark()
-        part = self._expr_list_48()
+        part = self._expr_list_53()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
-    def _expr_list_48(self):
+    def _expr_list_53(self):
         pos = self.mark()
         parts = []
         for _ in range(1):

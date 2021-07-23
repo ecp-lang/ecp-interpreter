@@ -86,7 +86,8 @@ def PyECP_ProcessIndexing(rv, indexes, l):
         elif t == "subscript":
             rv = Subscript(value=rv, slice=Index(value=v), ctx=Load(), **l)
         elif t == "call":
-            rv = Call(func=rv, args=v, keywords=[], **l)
+            args, kwargs = v
+            rv = Call(func=rv, args=args, keywords=kwargs, **l)
     return rv
 
 def PyECP_Variable(name: Token, indexes, l):
@@ -106,6 +107,15 @@ def PyECP_Parameters(p):
             params.append(param)
     return params
 
+def PyECP_KwParameters(p):
+    # p: (ID ASSIGN expr (COMMA ID ASSIGN expr)* COMMA?)?
+    kw_params = []
+    if not isinstance(p, Filler):
+        kw_params.append(keyword(arg=p[0].value, value=p[2]))
+        for _, *param in p[3]:
+            kw_params.append(keyword(arg=param[0].value, value=param[2]))
+    return kw_params
+
 def PyECP_Factor(factor, indexes, l):
     rv = factor
     return PyECP_ProcessIndexing(rv, indexes, l)
@@ -121,8 +131,12 @@ def PyECP_Magic(name: str, parameters, l):
         return Continue()
     elif name == "BREAK":
         return Break()
+    elif name == "OUTPUT":
+        name = "print"
+    elif name == "USERINPUT":
+        name = "input"
 
-    return Call(func=Name(id="_MAGIC_"+name, ctx=Load()), args=parameters, keywords=[], **l)
+    return Call(func=Name(id=name, ctx=Load()), args=parameters, keywords=[], **l)
 
 
 def PyECP_Tuple(values, l):

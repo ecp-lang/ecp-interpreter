@@ -10,10 +10,11 @@ statement
 
 assignment_statement  :  target=variable (COLON ID)? ASSIGN value=expr { PyECP_Assign(target, value, self.loc) };
 variable  :  CONSTANT? name=ID indexing=indexing { PyECP_Variable(name, indexing, self.loc) };
-parameters  :  params=(expr (COMMA expr)* COMMA?)? { PyECP_Parameters(params) };
+parameters  :  params=(expr !ASSIGN (COMMA expr !ASSIGN)* COMMA?)? { PyECP_Parameters(params) };
+kw_parameters  :  params=(ID ASSIGN expr (COMMA ID ASSIGN expr)* COMMA?)? { PyECP_KwParameters(params) };
 attr_index  :  DOT i=ID { "attr", i.value };
 subscript_index  :  LS_PAREN i=expr RS_PAREN { "subscript", i };
-call  :  LPAREN params=parameters RPAREN { "call", params };
+call  :  LPAREN params=parameters kw_params=kw_parameters RPAREN { "call", (params, kw_params) };
 indexing  :  indexes=(attr_index | subscript_index | call)* { [i for [i] in indexes] };
 factor  :  f=factor_part i=indexing { PyECP_Factor(f, i, self.loc) };
 

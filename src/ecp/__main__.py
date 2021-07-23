@@ -8,7 +8,7 @@ from traceback import print_exc
 import os
 
 def main():
-    parser = argparse.ArgumentParser(description="ECP interpreter")
+    parser = argparse.ArgumentParser("ecp", description="ECP interpreter")
     parser.add_argument("inputfile", type=argparse.FileType("r", encoding="utf-8"), nargs="?")
     parser.add_argument("--debug", action="store_true", help="show debug information like token list")
     parser.add_argument("--trace", action="store", nargs="*", default=[], help="space seperated names of the variables to be traced")
@@ -48,11 +48,11 @@ def main():
         # Live console
         print(f"ECP {__version__}")
         string = ""
-        prompt = ">>> "
-        more_prompt = "... "
+        prompt = "ECP> "
+        more_prompt = ".... "
         while True:
             try:
-                string = input(">>> ")
+                string = input(prompt)
                 more = get_more(string)
                 while more:
                     string += "\n" + input(more_prompt)
