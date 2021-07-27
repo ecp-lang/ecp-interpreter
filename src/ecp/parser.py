@@ -4,11 +4,13 @@ from .parser_helpers import *
 from parsergen.parser_utils import GeneratedParser, TokenStream, Node, Filler
 from parsergen.parser_utils import memoize, memoize_left_rec
 from functools import reduce
-
-class CustomParser(GeneratedParser):
+class EcpParser(GeneratedParser):
     @memoize
     def program(self):
         pos = self.mark()
+        """
+        p=compound EOF { Module(body=p, type_ignores=[], **self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.compound()
@@ -31,6 +33,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def compound(self):
         pos = self.mark()
+        """
+        c=statement* { PyECP_Compound(c, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self._loop_0()
@@ -46,6 +51,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _loop_0(self):
+        """
+        statement*
+        """
         children = []
         while True:
             pos = self.mark()
@@ -58,6 +66,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def statement(self):
         pos = self.mark()
+        """
+        e=if_statement | for_loop | while_loop | repeat_until_loop | record_definition | try_catch | suboroutine_definition | class_definition | import_statement | assignment_statement { e };
+        """
         parts = []
         for _ in range(1):
             part = self._or_1()
@@ -70,6 +81,9 @@ class CustomParser(GeneratedParser):
             return e
         self.goto(pos)
         
+        """
+        e=expr { PyECP_ExprStatement(e) };
+        """
         parts = []
         for _ in range(1):
             part = self.expr()
@@ -85,6 +99,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _or_1(self):
+        """
+        if_statement | for_loop | while_loop | repeat_until_loop | record_definition | try_catch | suboroutine_definition | class_definition | import_statement | assignment_statement
+        """
         pos = self.mark()
         part = self.if_statement()
         if self.match(part): return part
@@ -121,6 +138,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def assignment_statement(self):
         pos = self.mark()
+        """
+        target=variable (COLON ID)? ASSIGN value=expr { PyECP_Assign(target, value, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.variable()
@@ -152,12 +172,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_2(self):
+        """
+        (COLON ID)?
+        """
         pos = self.mark()
         part = self._expr_list_3()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_3(self):
+        """
+        (COLON ID)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -177,6 +203,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def variable(self):
         pos = self.mark()
+        """
+        CONSTANT? name=ID indexing=indexing { PyECP_Variable(name, indexing, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self._maybe_4()
@@ -203,6 +232,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_4(self):
+        """
+        CONSTANT?
+        """
         pos = self.mark()
         part = self.expect('CONSTANT')
         if self.match(part): return part
@@ -211,6 +243,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def parameters(self):
         pos = self.mark()
+        """
+        params=(expr !ASSIGN (COMMA expr !ASSIGN)* COMMA?)? { PyECP_Parameters(params) };
+        """
         parts = []
         for _ in range(1):
             part = self._maybe_5()
@@ -226,12 +261,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_5(self):
+        """
+        (expr !ASSIGN (COMMA expr !ASSIGN)* COMMA?)?
+        """
         pos = self.mark()
         part = self._expr_list_6()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_6(self):
+        """
+        (expr !ASSIGN (COMMA expr !ASSIGN)* COMMA?)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -260,6 +301,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _loop_7(self):
+        """
+        (COMMA expr !ASSIGN)*
+        """
         children = []
         while True:
             pos = self.mark()
@@ -270,6 +314,9 @@ class CustomParser(GeneratedParser):
                 break
         return children
     def _expr_list_9(self):
+        """
+        (COMMA expr !ASSIGN)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -293,6 +340,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _maybe_8(self):
+        """
+        COMMA?
+        """
         pos = self.mark()
         part = self.expect('COMMA')
         if self.match(part): return part
@@ -301,6 +351,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def kw_parameters(self):
         pos = self.mark()
+        """
+        params=(ID ASSIGN expr (COMMA ID ASSIGN expr)* COMMA?)? { PyECP_KwParameters(params) };
+        """
         parts = []
         for _ in range(1):
             part = self._maybe_10()
@@ -316,12 +369,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_10(self):
+        """
+        (ID ASSIGN expr (COMMA ID ASSIGN expr)* COMMA?)?
+        """
         pos = self.mark()
         part = self._expr_list_11()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_11(self):
+        """
+        (ID ASSIGN expr (COMMA ID ASSIGN expr)* COMMA?)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -354,6 +413,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _loop_12(self):
+        """
+        (COMMA ID ASSIGN expr)*
+        """
         children = []
         while True:
             pos = self.mark()
@@ -364,6 +426,9 @@ class CustomParser(GeneratedParser):
                 break
         return children
     def _expr_list_14(self):
+        """
+        (COMMA ID ASSIGN expr)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -391,6 +456,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _maybe_13(self):
+        """
+        COMMA?
+        """
         pos = self.mark()
         part = self.expect('COMMA')
         if self.match(part): return part
@@ -399,6 +467,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def attr_index(self):
         pos = self.mark()
+        """
+        DOT i=ID { "attr", i.value };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('DOT')
@@ -421,6 +492,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def subscript_index(self):
         pos = self.mark()
+        """
+        LS_PAREN i=expr RS_PAREN { "subscript", i };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('LS_PAREN')
@@ -448,6 +522,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def call(self):
         pos = self.mark()
+        """
+        LPAREN params=parameters kw_params=kw_parameters RPAREN { "call", (params, kw_params) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('LPAREN')
@@ -481,6 +558,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def indexing(self):
         pos = self.mark()
+        """
+        indexes=(attr_index | subscript_index | call)* { [i for [i] in indexes] };
+        """
         parts = []
         for _ in range(1):
             part = self._loop_15()
@@ -496,6 +576,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _loop_15(self):
+        """
+        (attr_index | subscript_index | call)*
+        """
         children = []
         while True:
             pos = self.mark()
@@ -506,6 +589,9 @@ class CustomParser(GeneratedParser):
                 break
         return children
     def _expr_list_16(self):
+        """
+        (attr_index | subscript_index | call)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -518,6 +604,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _or_17(self):
+        """
+        attr_index | subscript_index | call
+        """
         pos = self.mark()
         part = self.attr_index()
         if self.match(part): return part
@@ -533,6 +622,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def factor(self):
         pos = self.mark()
+        """
+        f=factor_part i=indexing { PyECP_Factor(f, i, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.factor_part()
@@ -556,6 +648,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def factor_part(self):
         pos = self.mark()
+        """
+        t=INT | FLOAT | BOOLEAN | STRING | NONE { PyECP_Constant(t, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self._or_18()
@@ -568,6 +663,9 @@ class CustomParser(GeneratedParser):
             return PyECP_Constant(t, self.loc)
         self.goto(pos)
         
+        """
+        LPAREN e=expr RPAREN { e };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('LPAREN')
@@ -590,6 +688,9 @@ class CustomParser(GeneratedParser):
             return e
         self.goto(pos)
         
+        """
+        p=array | dictionary | tuple | magic_function | variable { p };
+        """
         parts = []
         for _ in range(1):
             part = self._or_19()
@@ -602,6 +703,9 @@ class CustomParser(GeneratedParser):
             return p
         self.goto(pos)
         
+        """
+        op=PLUS | SUB | NOT e=factor { PyECP_UnaryOp(op, e) };
+        """
         parts = []
         for _ in range(1):
             part = self._or_20()
@@ -623,6 +727,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _or_18(self):
+        """
+        INT | FLOAT | BOOLEAN | STRING | NONE
+        """
         pos = self.mark()
         part = self.expect('INT')
         if self.match(part): return part
@@ -642,6 +749,9 @@ class CustomParser(GeneratedParser):
         self.fail()
         return None
     def _or_19(self):
+        """
+        array | dictionary | tuple | magic_function | variable
+        """
         pos = self.mark()
         part = self.array()
         if self.match(part): return part
@@ -661,6 +771,9 @@ class CustomParser(GeneratedParser):
         self.fail()
         return None
     def _or_20(self):
+        """
+        PLUS | SUB | NOT
+        """
         pos = self.mark()
         part = self.expect('PLUS')
         if self.match(part): return part
@@ -676,6 +789,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def expr(self):
         pos = self.mark()
+        """
+        e=op_or { e };
+        """
         parts = []
         for _ in range(1):
             part = self.op_or()
@@ -693,6 +809,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def op_or(self):
         pos = self.mark()
+        """
+        base=op_and others=(OR op_and)+ { PyECP_BoolOp(base, "OR", others, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.op_and()
@@ -711,6 +830,9 @@ class CustomParser(GeneratedParser):
             return PyECP_BoolOp(base, "OR", others, self.loc)
         self.goto(pos)
         
+        """
+        e=op_and { e };
+        """
         parts = []
         for _ in range(1):
             part = self.op_and()
@@ -726,6 +848,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _loop_21(self):
+        """
+        (OR op_and)+
+        """
         children = []
         while True:
             pos = self.mark()
@@ -738,6 +863,9 @@ class CustomParser(GeneratedParser):
                 break
         return children if len(children) > 0 else None
     def _expr_list_22(self):
+        """
+        (OR op_and)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -757,6 +885,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def op_and(self):
         pos = self.mark()
+        """
+        base=inversion others=(AND inversion)+ { PyECP_BoolOp(base, "AND", others, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.inversion()
@@ -775,6 +906,9 @@ class CustomParser(GeneratedParser):
             return PyECP_BoolOp(base, "AND", others, self.loc)
         self.goto(pos)
         
+        """
+        e=inversion { e };
+        """
         parts = []
         for _ in range(1):
             part = self.inversion()
@@ -790,6 +924,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _loop_23(self):
+        """
+        (AND inversion)+
+        """
         children = []
         while True:
             pos = self.mark()
@@ -802,6 +939,9 @@ class CustomParser(GeneratedParser):
                 break
         return children if len(children) > 0 else None
     def _expr_list_24(self):
+        """
+        (AND inversion)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -821,6 +961,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def inversion(self):
         pos = self.mark()
+        """
+        op=NOT e=inversion { PyECP_UnaryOp(op, e) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('NOT')
@@ -839,6 +982,9 @@ class CustomParser(GeneratedParser):
             return PyECP_UnaryOp(op, e)
         self.goto(pos)
         
+        """
+        e=comparison { e };
+        """
         parts = []
         for _ in range(1):
             part = self.comparison()
@@ -856,6 +1002,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def comparison(self):
         pos = self.mark()
+        """
+        base=sum others=(LT | GT | LE | GE | EQ | NE sum)+ { PyECP_Comparison(base, others, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.sum()
@@ -874,6 +1023,9 @@ class CustomParser(GeneratedParser):
             return PyECP_Comparison(base, others, self.loc)
         self.goto(pos)
         
+        """
+        e=sum { e };
+        """
         parts = []
         for _ in range(1):
             part = self.sum()
@@ -889,6 +1041,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _loop_25(self):
+        """
+        (LT | GT | LE | GE | EQ | NE sum)+
+        """
         children = []
         while True:
             pos = self.mark()
@@ -901,6 +1056,9 @@ class CustomParser(GeneratedParser):
                 break
         return children if len(children) > 0 else None
     def _expr_list_26(self):
+        """
+        (LT | GT | LE | GE | EQ | NE sum)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -918,6 +1076,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _or_27(self):
+        """
+        LT | GT | LE | GE | EQ | NE
+        """
         pos = self.mark()
         part = self.expect('LT')
         if self.match(part): return part
@@ -942,6 +1103,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def sum(self):
         pos = self.mark()
+        """
+        left=sum op=ADD | SUB right=term { PyECP_BinOp(left, right, op, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.sum()
@@ -966,6 +1130,9 @@ class CustomParser(GeneratedParser):
             return PyECP_BinOp(left, right, op, self.loc)
         self.goto(pos)
         
+        """
+        e=term { e };
+        """
         parts = []
         for _ in range(1):
             part = self.term()
@@ -981,6 +1148,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _or_28(self):
+        """
+        ADD | SUB
+        """
         pos = self.mark()
         part = self.expect('ADD')
         if self.match(part): return part
@@ -993,6 +1163,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def term(self):
         pos = self.mark()
+        """
+        left=term op=MUL | DIV | INT_DIV | MOD right=uop { PyECP_BinOp(left, right, op, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.term()
@@ -1017,6 +1190,9 @@ class CustomParser(GeneratedParser):
             return PyECP_BinOp(left, right, op, self.loc)
         self.goto(pos)
         
+        """
+        e=uop { e };
+        """
         parts = []
         for _ in range(1):
             part = self.uop()
@@ -1032,6 +1208,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _or_29(self):
+        """
+        MUL | DIV | INT_DIV | MOD
+        """
         pos = self.mark()
         part = self.expect('MUL')
         if self.match(part): return part
@@ -1050,6 +1229,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def uop(self):
         pos = self.mark()
+        """
+        op=ADD | SUB e=uop { PyECP_UnaryOp(op, e) };
+        """
         parts = []
         for _ in range(1):
             part = self._or_30()
@@ -1068,6 +1250,9 @@ class CustomParser(GeneratedParser):
             return PyECP_UnaryOp(op, e)
         self.goto(pos)
         
+        """
+        e=power { e };
+        """
         parts = []
         for _ in range(1):
             part = self.power()
@@ -1083,6 +1268,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _or_30(self):
+        """
+        ADD | SUB
+        """
         pos = self.mark()
         part = self.expect('ADD')
         if self.match(part): return part
@@ -1095,6 +1283,9 @@ class CustomParser(GeneratedParser):
     @memoize_left_rec
     def power(self):
         pos = self.mark()
+        """
+        left=power op=POW right=factor { PyECP_BinOp(left, right, op, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.power()
@@ -1119,6 +1310,9 @@ class CustomParser(GeneratedParser):
             return PyECP_BinOp(left, right, op, self.loc)
         self.goto(pos)
         
+        """
+        e=factor { e };
+        """
         parts = []
         for _ in range(1):
             part = self.factor()
@@ -1136,6 +1330,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def magic_function(self):
         pos = self.mark()
+        """
+        name=MAGIC parameters=parameters { PyECP_Magic(name.value, parameters, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('MAGIC')
@@ -1159,6 +1356,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def param_definition(self):
         pos = self.mark()
+        """
+        name=ID (COLON ID)? { arg(arg=name.value, annotation=None, **self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('ID')
@@ -1179,12 +1379,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_31(self):
+        """
+        (COLON ID)?
+        """
         pos = self.mark()
         part = self._expr_list_32()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_32(self):
+        """
+        (COLON ID)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1204,6 +1410,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def suboroutine_definition(self):
         pos = self.mark()
+        """
+        SUBROUTINE name=ID LPAREN params=(param_definition (COMMA param_definition)* COMMA?)? RPAREN block=compound END { PyECP_SubroutineDef(name, params, block, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('SUBROUTINE')
@@ -1251,12 +1460,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_33(self):
+        """
+        (param_definition (COMMA param_definition)* COMMA?)?
+        """
         pos = self.mark()
         part = self._expr_list_34()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_34(self):
+        """
+        (param_definition (COMMA param_definition)* COMMA?)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1279,6 +1494,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _loop_35(self):
+        """
+        (COMMA param_definition)*
+        """
         children = []
         while True:
             pos = self.mark()
@@ -1289,6 +1507,9 @@ class CustomParser(GeneratedParser):
                 break
         return children
     def _expr_list_37(self):
+        """
+        (COMMA param_definition)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1306,6 +1527,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _maybe_36(self):
+        """
+        COMMA?
+        """
         pos = self.mark()
         part = self.expect('COMMA')
         if self.match(part): return part
@@ -1314,6 +1538,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def if_statement(self):
         pos = self.mark()
+        """
+        IF condition=expr THEN block=compound other=(elseif_statement | else_statement)? END { PyECP_IfStatement(condition, block, other, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('IF')
@@ -1356,12 +1583,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_38(self):
+        """
+        (elseif_statement | else_statement)?
+        """
         pos = self.mark()
         part = self._expr_list_39()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_39(self):
+        """
+        (elseif_statement | else_statement)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1374,6 +1607,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _or_40(self):
+        """
+        elseif_statement | else_statement
+        """
         pos = self.mark()
         part = self.elseif_statement()
         if self.match(part): return part
@@ -1386,6 +1622,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def elseif_statement(self):
         pos = self.mark()
+        """
+        ELSE otherwise=if_statement { [otherwise] };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('ELSE')
@@ -1408,6 +1647,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def else_statement(self):
         pos = self.mark()
+        """
+        ELSE block=compound { block };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('ELSE')
@@ -1430,6 +1672,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def while_loop(self):
         pos = self.mark()
+        """
+        WHILE condition=expr block=compound END { PyECP_While(condition, block, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('WHILE')
@@ -1463,6 +1708,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def repeat_until_loop(self):
         pos = self.mark()
+        """
+        REPEAT block=compound UNTIL condition=expr { PyECP_RepeatUntil(condition, block, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('REPEAT')
@@ -1496,6 +1744,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def array(self):
         pos = self.mark()
+        """
+        LS_PAREN values=parameters RS_PAREN { PyECP_Array(values, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('LS_PAREN')
@@ -1523,6 +1774,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def tuple(self):
         pos = self.mark()
+        """
+        LPAREN values=parameters RPAREN { PyECP_Tuple(values, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('LPAREN')
@@ -1550,6 +1804,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def dictionary(self):
         pos = self.mark()
+        """
+        LC_BRACE kv_pairs=(expr COLON expr (COMMA expr COLON expr)* COMMA?)? RC_BRACE { PyECP_Dictionary(kv_pairs, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('LC_BRACE')
@@ -1575,12 +1832,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_41(self):
+        """
+        (expr COLON expr (COMMA expr COLON expr)* COMMA?)?
+        """
         pos = self.mark()
         part = self._expr_list_42()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_42(self):
+        """
+        (expr COLON expr (COMMA expr COLON expr)* COMMA?)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1613,6 +1876,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _loop_43(self):
+        """
+        (COMMA expr COLON expr)*
+        """
         children = []
         while True:
             pos = self.mark()
@@ -1623,6 +1889,9 @@ class CustomParser(GeneratedParser):
                 break
         return children
     def _expr_list_45(self):
+        """
+        (COMMA expr COLON expr)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1650,6 +1919,9 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _maybe_44(self):
+        """
+        COMMA?
+        """
         pos = self.mark()
         part = self.expect('COMMA')
         if self.match(part): return part
@@ -1658,6 +1930,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def for_loop(self):
         pos = self.mark()
+        """
+        FOR v=variable ASSIGN start=expr TO end=expr step=(STEP expr)? block=compound END { PyECP_ForTo(v, start, end, step, block, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('FOR')
@@ -1714,6 +1989,9 @@ class CustomParser(GeneratedParser):
             return PyECP_ForTo(v, start, end, step, block, self.loc)
         self.goto(pos)
         
+        """
+        FOR v=variable IN iterator=expr block=compound END { PyECP_ForIn(v, iterator, block, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('FOR')
@@ -1756,12 +2034,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_46(self):
+        """
+        (STEP expr)?
+        """
         pos = self.mark()
         part = self._expr_list_47()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_47(self):
+        """
+        (STEP expr)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1781,6 +2065,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def record_definition(self):
         pos = self.mark()
+        """
+        RECORD name=ID values=(variable (COLON ID)?)* END { PyECP_Record(name, values, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('RECORD')
@@ -1812,6 +2099,9 @@ class CustomParser(GeneratedParser):
         return None
         
     def _loop_48(self):
+        """
+        (variable (COLON ID)?)*
+        """
         children = []
         while True:
             pos = self.mark()
@@ -1822,6 +2112,9 @@ class CustomParser(GeneratedParser):
                 break
         return children
     def _expr_list_49(self):
+        """
+        (variable (COLON ID)?)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1839,12 +2132,18 @@ class CustomParser(GeneratedParser):
         self.goto(pos)
         return None
     def _maybe_50(self):
+        """
+        (COLON ID)?
+        """
         pos = self.mark()
         part = self._expr_list_51()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_51(self):
+        """
+        (COLON ID)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):
@@ -1864,6 +2163,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def try_catch(self):
         pos = self.mark()
+        """
+        TRY try_block=compound CATCH catch_block=compound END { PyECP_Try(try_block, catch_block, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('TRY')
@@ -1902,6 +2204,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def class_definition(self):
         pos = self.mark()
+        """
+        CLASS name=variable body=compound END { PyECP_Class(name, body, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('CLASS')
@@ -1935,6 +2240,9 @@ class CustomParser(GeneratedParser):
     @memoize
     def import_statement(self):
         pos = self.mark()
+        """
+        IMPORT location=expr target=(AS expr)? { PyECP_Import(location, target, self.loc) };
+        """
         parts = []
         for _ in range(1):
             part = self.expect('IMPORT')
@@ -1961,12 +2269,18 @@ class CustomParser(GeneratedParser):
         return None
         
     def _maybe_52(self):
+        """
+        (AS expr)?
+        """
         pos = self.mark()
         part = self._expr_list_53()
         if self.match(part): return part
         self.goto(pos)
         return Filler()
     def _expr_list_53(self):
+        """
+        (AS expr)
+        """
         pos = self.mark()
         parts = []
         for _ in range(1):

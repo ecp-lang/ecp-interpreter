@@ -1,5 +1,5 @@
 from typing import *
-from parsergen import *
+from parsergen.lexer import *
 from tabulate import tabulate
 import codecs
 

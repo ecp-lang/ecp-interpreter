@@ -9,11 +9,11 @@ try:
 except ImportError:
     print("astor module not found - will not be able to convert ECP to python source code")
     astor = None
-from math import gamma, sqrt
-from random import randint, uniform
+from math import sqrt
+from random import randint
 from ast import *
 import ast
-from ecp.parser import CustomParser as EcpParser
+from ecp.parser import EcpParser
 from parsergen.parser_utils import *
 _List = ast.List
 _Dict = ast.Dict

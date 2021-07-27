@@ -1,3 +1,5 @@
+@class_name = 'EcpParser'
+
 program
     :  p=compound EOF { Module(body=p, type_ignores=[], **self.loc) };
 compound
