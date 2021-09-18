@@ -159,6 +159,8 @@ def PyECP_Dictionary(kv_pairs, l):
 def PyECP_IfStatement(condition, block, other, l):
     if isinstance(other, Filler):
         other = []
+    else:
+        other = other[0]
     return If(test=condition, body=block, orelse=other, **l)
 
 def PyECP_SubroutineDef(name: Token, params, block, l):

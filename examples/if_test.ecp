@@ -1,0 +1,7 @@
+IF a = 1 THEN
+    1
+ELSE IF a = 2 THEN
+    2
+ELSE
+    0
+ENDIF

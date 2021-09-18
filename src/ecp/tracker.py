@@ -32,7 +32,7 @@ class Tracker:
     
             self.values[name] = data
     def displayTraceTable(self, variables: List[str] = None, tablefmt="github") -> str:
-        headers = list(self.values.keys())
+        headers = [k for k in self.variables if k in self.values]
         if variables:
             headers = variables
         

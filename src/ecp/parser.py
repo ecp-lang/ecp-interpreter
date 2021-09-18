@@ -1539,7 +1539,32 @@ class EcpParser(GeneratedParser):
     def if_statement(self):
         pos = self.mark()
         """
-        IF condition=expr THEN block=compound other=(elseif_statement | else_statement)? END { PyECP_IfStatement(condition, block, other, self.loc) };
+        i=_if_statement END { i };
+        """
+        parts = []
+        for _ in range(1):
+            part = self._if_statement()
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            part = self.expect('END')
+            if not self.match(part):
+                self.fail()
+                break
+            parts.append(part)
+            # match:
+            i = parts[0]
+            return i
+        self.goto(pos)
+        
+        return None
+        
+    @memoize
+    def _if_statement(self):
+        pos = self.mark()
+        """
+        IF condition=expr THEN block=compound other=(elseif_statement | else_statement)? { PyECP_IfStatement(condition, block, other, self.loc) };
         """
         parts = []
         for _ in range(1):
@@ -1564,11 +1589,6 @@ class EcpParser(GeneratedParser):
                 break
             parts.append(part)
             part = self._maybe_38()
-            if not self.match(part):
-                self.fail()
-                break
-            parts.append(part)
-            part = self.expect('END')
             if not self.match(part):
                 self.fail()
                 break
@@ -1623,7 +1643,7 @@ class EcpParser(GeneratedParser):
     def elseif_statement(self):
         pos = self.mark()
         """
-        ELSE otherwise=if_statement { [otherwise] };
+        ELSE otherwise=_if_statement { [otherwise] };
         """
         parts = []
         for _ in range(1):
@@ -1632,7 +1652,7 @@ class EcpParser(GeneratedParser):
                 self.fail()
                 break
             parts.append(part)
-            part = self.if_statement()
+            part = self._if_statement()
             if not self.match(part):
                 self.fail()
                 break

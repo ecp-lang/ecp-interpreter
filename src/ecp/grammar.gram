@@ -58,8 +58,9 @@ magic_function  :  name=MAGIC parameters=parameters { PyECP_Magic(name.value, pa
 param_definition  :  name=ID (COLON ID)? { arg(arg=name.value, annotation=None, **self.loc) };
 suboroutine_definition  :  SUBROUTINE name=ID LPAREN params=(param_definition (COMMA param_definition)* COMMA?)? RPAREN block=compound END { PyECP_SubroutineDef(name, params, block, self.loc) };
 
-if_statement  :  IF condition=expr THEN block=compound other=(elseif_statement | else_statement)? END { PyECP_IfStatement(condition, block, other, self.loc) };
-elseif_statement  :  ELSE otherwise=if_statement { [otherwise] };
+if_statement  :  i=_if_statement END { i };
+_if_statement  :  IF condition=expr THEN block=compound other=(elseif_statement | else_statement)? { PyECP_IfStatement(condition, block, other, self.loc) };
+elseif_statement  :  ELSE otherwise=_if_statement { [otherwise] };
 else_statement  :  ELSE block=compound { block };
 
 while_loop  :  WHILE condition=expr block=compound END { PyECP_While(condition, block, self.loc) };
