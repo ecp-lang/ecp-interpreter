@@ -1,7 +1,7 @@
 # pseudocode-interpreter
 CC BY-SA 2021 Alfred Taylor & Conqu3red 
 
-# **(AQA) Exam Compatible Psuedocode V1.0  (A.E.C.P/E.C.P)**
+# **(AQA) Exam Compatible Psuedocode V1 ALPHA  (A.E.C.P/E.C.P)**
 
 ## `PLEASE EXPECT LIMITED FUNCTIONALITY.`
 
