@@ -1,17 +1,19 @@
+from sys import exc_info
 from .lexer import *
-from .parse import *
-from . import __version__
+from .topython import *
+from . import __version__, _dump
 import argparse
 from .tracker import Tracker
 from traceback import print_exc
 import os
+
 def main():
-    
-    parser = argparse.ArgumentParser(description="ECP interpreter")
+    parser = argparse.ArgumentParser("ecp", description="ECP interpreter")
     parser.add_argument("inputfile", type=argparse.FileType("r", encoding="utf-8"), nargs="?")
     parser.add_argument("--debug", action="store_true", help="show debug information like token list")
     parser.add_argument("--trace", action="store", nargs="*", default=[], help="space seperated names of the variables to be traced")
     parser.add_argument("--tracecompact", action="store_true", help="trace compactly")
+    parser.add_argument("--topython", action="store_true", help="Try to convert the ECP program to python source code")
     parser.add_argument("--pause", action="store_true", help="pause on completion")
     parser.add_argument('--version', action='version', version='%(prog)s v'+__version__)
 
@@ -24,9 +26,6 @@ def main():
         name = os.path.basename(options.inputfile.name)
         options.inputfile.close()
 
-        l = Lexer()
-        result = l.lexString(string)
-
         def debugOutput(result):
             table = []
             for i in result.tokens:
@@ -34,15 +33,14 @@ def main():
             print(tabulate(table, tablefmt="github", headers=["VALUE", "TYPE"]))
 
         if options.debug:
-            debugOutput(result)
-
-        p = Parser(result)
-        i = Interpreter(tracer=Tracker(options.trace, options.tracecompact), location=loc, name=name)
-
-        i.interpret(p.parse())
-        #print("global variables:", i.current_scope)
-        if should_trace:
-            print(i.tracer.displayTraceTable(variables=options.trace))
+            pass
+            #debugOutput(result)
+        sys.path.insert(0, loc)
+        if options.topython:
+            print(to_py_source(string))
+        else:
+            #print(_dump(parse_ecp(string), indent=2, include_attributes=True)) # DEBUG
+            ecp(string, name=name, scope=globals(), trace=options.trace, tracecompact=options.tracecompact)
         if options.pause:
             input("Press enter to exit...")
 
@@ -50,35 +48,27 @@ def main():
         # Live console
         print(f"ECP {__version__}")
         string = ""
-        multiple_line = False
-        prompt = ">>> "
-        l = Lexer()
-        result = l.lexString("")
-        p = Parser(result)
-        i = Interpreter()
-        i.interpret(p.parse())
+        prompt = "ECP> "
+        more_prompt = ".... "
         while True:
-            if not multiple_line:
-                string = input(">>> ")
-                multiple_line = string.endswith("\\")
-                if multiple_line:
-                    string = string[:-1]
-                    string += "\n"
-
-            while multiple_line:
-                string += input("... ")
-                multiple_line = string.endswith("\\")
-                if multiple_line:
-                    string = string[:-1]
-                    string += "\n"
-
             try:
-                l = Lexer()
-                p = Parser(l.lexString(string))
-                tree = Parser(l.lexString(string)).parse()
-                i.visit(tree)
-            except:
-                print_exc(0)
+                string = input(prompt)
+                more = get_more(string)
+                while more:
+                    string += "\n" + input(more_prompt)
+                    #print(repr(string))
+                    more = get_more(string)
+                try:
+                    ecp(string, name="<stdin>", scope=globals(), mode="single")
+                except SystemExit:
+                    exit()
+                except:
+                    print_exc(0)
+            except KeyboardInterrupt:
+                print()
+                string = ""
+            except EOFError:
+                exit()
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,5 @@
-from lexer import *
-from parse import *
+from .lexer import *
+from .parse import *
 import argparse
 import textwrap
 from traceback import print_exc
@@ -326,17 +326,17 @@ parser.add_argument("--shape", action="store", dest="shape")
 options = parser.parse_args()
 #print(options)
 if options.inputfile:
-    string = options.inputfile.read()
+    s = options.inputfile.read()
     options.inputfile.close()
 else:
-    string = options.c
+    s = options.c
 
 l = Lexer()
-result = l.lexString(string)
-p = Parser(l)
+result = l.lexString(s)
+p = Parser(result)
 i = DotGenerator(p, shape=options.shape if options.shape else "circle")
-string = i.generate()
-print(string)
+s = i.generate()
+print(s)
 
 # Example:
 # python genasdot.py -c "OUTPUT 2 + 3 * 4" > ast.dot && dot -Tpng -o ast.png ast.dot

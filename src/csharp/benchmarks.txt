@@ -1,4 +1,0 @@
-BENCHMARK           C#      Python  PyPy
-10k primes          0.32s   0.83s   0.55s
-10k * add           0.24s   0.27s   0.46s
-10k element list    0.31s   0.32s   0.59s

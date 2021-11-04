@@ -1,4 +1,4 @@
-IMPORT "math"
+PY("import math")
 
 a := 1
 b := []

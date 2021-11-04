@@ -1,2 +1,2 @@
-IMPORT "sys"
+PY("import sys")
 OUTPUT sys.path
