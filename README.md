@@ -7,7 +7,7 @@ CC BY-SA 2021 Alfred Taylor & Conqu3red
 
 ## Introduction:
 
-This is an adaptation of the pseudocode used by the AQA GCSE testing body (found [here](https://filestore.aqa.org.uk/resources/computing/AQA-8525-TG-PC.PDF)) that has had its syntax tweaked for use in a compiler and had some additional functionality added. The language will be fully Turing complete. Pseudocode found in tests is compatible with AECP/ECP. It is procedurally based, and shares similarities with python (It is programmed on python, after all.) It is intended as a scripting language, that is separate from python, but has the same basic functionality, whilst maintaining some resemblance of simplicity. Considering it is entirely written in python, it is not for use in situations where speed is a priority.
+This is an adaptation of the pseudocode used by the AQA GCSE testing body (found [here](https://filestore.aqa.org.uk/resources/computing/AQA-8525-NG-PC.PDF)) that has had its syntax tweaked for use in a compiler and had some additional functionality added. The language will be fully Turing complete. Pseudocode found in tests is compatible with AECP/ECP. It is procedurally based, and shares similarities with python (It is programmed on python, after all.) It is intended as a scripting language, that is separate from python, but has the same basic functionality, whilst maintaining some resemblance of simplicity. Considering it is entirely written in python, it is not for use in situations where speed is a priority.
 
 **Interpreters**
 
