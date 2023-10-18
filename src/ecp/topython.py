@@ -96,17 +96,25 @@ class Namespace:
 def fix_line_and_column(node):
     for child in walk(node):
         if 'lineno' in child._attributes:
-            child.lineno = getattr(child, 'lineno', 0)
+            child.lineno = getattr(child, 'lineno', getattr(node, 'lineno', 0))
         if 'end_lineno' in child._attributes:
-            child.end_lineno = getattr(child, 'end_lineno', 0)
+            child.end_lineno = getattr(child, 'end_lineno') or 0
+            if child.end_lineno < child.lineno:
+                child.end_lineno = getattr(child, "lineno", 0)
+        
         if 'col_offset' in child._attributes:
-            child.col_offset = getattr(child, 'col_offset', 0)
+            child.col_offset = getattr(child, 'col_offset', getattr(node, 'col_offset', 0))
         if 'end_col_offset' in child._attributes:
-            child.end_col_offset = getattr(child, 'end_col_offset', 0)
+            child.end_col_offset = getattr(child, 'end_col_offset') or 0
+            if child.end_col_offset < child.col_offset:
+                child.end_col_offset = getattr(child, "col_offset", 0)
+    
     return fix_missing_locations(node)
 
 def parse_ecp(text: str, mode="exec"):
-    p = EcpParser(TokenStream(EcpLexer().lex_string(text)))
+    lex_result = EcpLexer().lex_string(text)
+    tokens = TokenStream(lex_result)
+    p = EcpParser(tokens)
     rv = p.program()
     error = p.error()
     if rv is None and error is not None:
@@ -151,7 +159,7 @@ def ecp(text: str=None, *, file: str=None, name="<unkown>", showAST=False, scope
     scope.update(globals())
     r = parse_ecp(text, mode=mode)
     if showAST:
-        print(_dump(r, indent=2))
+        print(_dump(r, include_attributes=True, indent=2))
     if len(trace) > 0:
         with Tracer(trace, compact=tracecompact):
             exec(compile(parse(r, mode=mode), name, mode), scope)

@@ -11,6 +11,7 @@ def main():
     parser = argparse.ArgumentParser("ecp", description="ECP interpreter")
     parser.add_argument("inputfile", type=argparse.FileType("r", encoding="utf-8"), nargs="?")
     parser.add_argument("--debug", action="store_true", help="show debug information like token list")
+    parser.add_argument("--showast", action="store_true", help="show AST")
     parser.add_argument("--trace", action="store", nargs="*", default=[], help="space seperated names of the variables to be traced")
     parser.add_argument("--tracecompact", action="store_true", help="trace compactly")
     parser.add_argument("--topython", action="store_true", help="Try to convert the ECP program to python source code")
@@ -40,7 +41,7 @@ def main():
             print(to_py_source(string))
         else:
             #print(_dump(parse_ecp(string), indent=2, include_attributes=True)) # DEBUG
-            ecp(string, name=name, scope=globals(), trace=options.trace, tracecompact=options.tracecompact)
+            ecp(string, name=name, scope=globals(), trace=options.trace, tracecompact=options.tracecompact, showAST=options.showast)
         if options.pause:
             input("Press enter to exit...")
 

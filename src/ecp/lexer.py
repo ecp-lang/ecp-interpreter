@@ -83,6 +83,7 @@ class EcpLexer(Lexer):
                     escape = True
                 if cur_char == end and not escape:
                     t.value = codecs.getdecoder("unicode_escape")(result)[0]
+                    t.end = Pos(self.lineno, self.column)
                     return t
                 result += cur_char
                 escape = False

@@ -46,7 +46,7 @@ TYPE_CONVERSIONS = {
 
 def loc(self: GeneratedParser):
     tok = self.peek_token()
-    return {"lineno": tok.lineno, "col_offset": tok.column}
+    return {"lineno": tok.start.lineno, "col_offset": tok.start.col, "end_lineno": tok.end.lineno, "end_col_offset": tok.end.col}
 
 GeneratedParser.loc = property(loc) # add loc property so we can get location
 
