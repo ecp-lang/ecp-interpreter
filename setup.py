@@ -28,7 +28,7 @@ setuptools.setup(
     install_requires=[
         "tabulate",
         "astor",
-        "parsergen==2.0.0b9"
+        "parsergen==2.0.0b10"
     ],
     entry_points = {
         'console_scripts': [
