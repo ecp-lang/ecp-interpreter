@@ -98,7 +98,7 @@ def fix_line_and_column(node):
         if 'lineno' in child._attributes:
             child.lineno = getattr(child, 'lineno', getattr(node, 'lineno', 0))
         
-        if 'end_lineno' in child._attributes and sys.version_info > (3, 8):
+        if 'end_lineno' in child._attributes and sys.version_info >= (3, 9):
             child.end_lineno = getattr(child, 'end_lineno') or 0
             if child.end_lineno < child.lineno:
                 child.end_lineno = getattr(child, "lineno", 0)
@@ -106,7 +106,7 @@ def fix_line_and_column(node):
         if 'col_offset' in child._attributes:
             child.col_offset = getattr(child, 'col_offset', getattr(node, 'col_offset', 0))
         
-        if 'end_col_offset' in child._attributes and sys.version_info > (3, 8):
+        if 'end_col_offset' in child._attributes and sys.version_info >= (3, 9):
             child.end_col_offset = getattr(child, 'end_col_offset') or 0
             if child.end_col_offset < child.col_offset:
                 child.end_col_offset = getattr(child, "col_offset", 0)
