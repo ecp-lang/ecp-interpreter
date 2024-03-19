@@ -1,7 +1,8 @@
 # pseudocode-interpreter
-CC BY-SA 2021 Alfred Taylor & Conqu3red 
 
-# **(AQA) Exam Compatible Psuedocode V1 ALPHA  (A.E.C.P/E.C.P)**
+CC BY-SA 2021 Alfred Taylor & Conqu3red
+
+# **(AQA) Exam Compatible Psuedocode V1 ALPHA (A.E.C.P/E.C.P)**
 
 ## `PLEASE EXPECT LIMITED FUNCTIONALITY.`
 
@@ -18,7 +19,9 @@ Currently we only have a python based interpreter, altough we have a C++ based i
 AECP/ECP code is analysed and then parsed into a python AST (Abstract Syntax Tree). This can then be executed by the python interpreter. This allows near seamless integration with python and almost identical speed and behaviour.
 
 # Usage
+
 ## Command Line arguments
+
 ```
 usage: python -m ecp [-h] [--debug] [--trace [TRACE [TRACE ...]]] [--tracecompact] [--pause] [--version] [inputfile]
 
@@ -38,15 +41,19 @@ optional arguments:
 ```
 
 # Installation
+
 ```
 pip install py-ecp
 ```
+
 ## Running
+
 ```
 python -m ecp path/to/ecp/file.ecp
 ```
 
 ## Embedding ecp code in python files
+
 ```python
 from ecp import ecp
 
@@ -65,10 +72,13 @@ print(TotalOut(3, 4))
 ```
 
 ## Converting ECp to python source code
+
 ```
 python -m ecp path/to/ecp/file.ecp --topython
 ```
+
 or:
+
 ```python
 from ecp import to_py_source
 text = """
@@ -79,6 +89,5 @@ ENDSUBROUTINE
 
 print(to_py_source(text))
 ```
+
 # MORE COMING SOON!
-
-
